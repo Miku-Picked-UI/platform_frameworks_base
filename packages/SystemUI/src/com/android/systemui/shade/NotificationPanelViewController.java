@@ -265,6 +265,10 @@ public final class NotificationPanelViewController implements
     private static final Rect M_DUMMY_DIRTY_RECT = new Rect(0, 0, 1, 1);
     private static final String DOUBLE_TAP_SLEEP_GESTURE =
             Settings.Secure.DOUBLE_TAP_SLEEP_GESTURE;
+    private static final String STATUS_BAR_BRIGHTNESS_CONTROL =
+            "system:" + Settings.System.STATUS_BAR_BRIGHTNESS_CONTROL;
+    private static final String STATUS_BAR_BRIGHTNESS_CONTROL_LOCKSCREEN =
+            "system:" + Settings.System.STATUS_BAR_BRIGHTNESS_CONTROL_LOCKSCREEN;
     private static final Rect EMPTY_RECT = new Rect();
     //TODO(b/394977231) delete this temporary workaround used only by tests
     private static final boolean DISABLE_LONG_PRESS_EXPAND = Build.HARDWARE.equals("cutf_cvm");
@@ -482,6 +486,12 @@ public final class NotificationPanelViewController implements
     private final NavigationBarController mNavigationBarController;
     private final int mDisplayId;
     private boolean mDoubleTapToSleepEnabled;
+    // Miku-Picked UI: status bar brightness control (CyanogenMod / crDroid / Evolution X).
+    private boolean mBrightnessControl;
+    private boolean mBrightnessControlLockscreen;
+    private StatusBarBrightnessControl mBrightnessControlHelper;
+    private boolean mFeedingBrightnessCancel;
+    private boolean mBrightnessTookTouch;
     private GestureDetector mDoubleTapGesture;
 
     private final KeyguardIndicationController mKeyguardIndicationController;
@@ -3744,6 +3754,8 @@ public final class NotificationPanelViewController implements
             }
             mConfigurationController.addCallback(mConfigurationListener);
             mTunerService.addTunable(this, DOUBLE_TAP_SLEEP_GESTURE);
+            mTunerService.addTunable(this, STATUS_BAR_BRIGHTNESS_CONTROL);
+            mTunerService.addTunable(this, STATUS_BAR_BRIGHTNESS_CONTROL_LOCKSCREEN);
             // Theme might have changed between inflating this view and attaching it to the
             // window, so
             // force a call to onThemeChanged
@@ -3766,6 +3778,15 @@ public final class NotificationPanelViewController implements
         public void onTuningChanged(String key, String newValue) {
             if (DOUBLE_TAP_SLEEP_GESTURE.equals(key)) {
                 mDoubleTapToSleepEnabled = TunerService.parseIntegerSwitch(newValue, true);
+            } else if (STATUS_BAR_BRIGHTNESS_CONTROL.equals(key)) {
+                mBrightnessControl = TunerService.parseIntegerSwitch(newValue, false);
+                if (mBrightnessControl && mBrightnessControlHelper == null) {
+                    mBrightnessControlHelper =
+                            new StatusBarBrightnessControl(mView.getContext(), mView,
+                                    !ShadeExpandsOnStatusBarLongPress.isEnabled());
+                }
+            } else if (STATUS_BAR_BRIGHTNESS_CONTROL_LOCKSCREEN.equals(key)) {
+                mBrightnessControlLockscreen = TunerService.parseIntegerSwitch(newValue, false);
             }
         }
     }
@@ -4105,6 +4126,32 @@ public final class NotificationPanelViewController implements
                     || event.getAction() == MotionEvent.ACTION_CANCEL) {
                 mBlockingExpansionForCurrentTouch = false;
             }
+
+            if (mBrightnessControl && mBrightnessControlHelper != null
+                    && !mFeedingBrightnessCancel
+                    && (mBarState != KEYGUARD || mBrightnessControlLockscreen)) {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    mBrightnessTookTouch = false;
+                }
+                final boolean inStatusBar = event.getRawY() < mStatusBarMinHeight;
+                if (mBrightnessControlHelper.onTouchEvent(event, inStatusBar)) {
+                    if (!mBrightnessTookTouch) {
+                        mBrightnessTookTouch = true;
+                        // The shade has seen the start of this touch: end it there with a
+                        // cancel so it doesn't stay half-tracking, then keep the rest.
+                        final MotionEvent cancel = MotionEvent.obtain(event);
+                        cancel.setAction(MotionEvent.ACTION_CANCEL);
+                        mFeedingBrightnessCancel = true;
+                        try {
+                            onTouchEvent(cancel);
+                        } finally {
+                            mFeedingBrightnessCancel = false;
+                            cancel.recycle();
+                        }
+                    }
+                    return true;
+                }
+            }
             // When touch focus transfer happens, ACTION_DOWN->ACTION_UP may happen immediately
             // without any ACTION_MOVE event.
             // In such case, simply expand the panel instead of being stuck at the bottom bar.
@@ -4144,6 +4191,9 @@ public final class NotificationPanelViewController implements
             if (!mHeadsUpTouchHelper.isTrackingHeadsUp() && mQsController.handleTouch(
                     event, isFullyCollapsed(), isShadeOrQsHeightAnimationRunning(),
                     mLastEventSynthesizedDown)) {
+                if (mBrightnessControlHelper != null) {
+                    mBrightnessControlHelper.cancel();
+                }
                 if (event.getActionMasked() != MotionEvent.ACTION_MOVE) {
                     mShadeLog.logMotionEvent(event, "onTouch: handleQsTouch handled event");
                 }

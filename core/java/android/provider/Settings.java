@@ -7040,6 +7040,20 @@ public final class Settings {
         @Readable
         public static final String SCREENSHOT_SHUTTER_SOUND = "screenshot_shutter_sound";
 
+        /**
+         * [Miku-Picked UI] Slide along the status bar to change brightness (CyanogenMod / crDroid / Evolution X).
+         * @hide
+         */
+        @Readable
+        public static final String STATUS_BAR_BRIGHTNESS_CONTROL = "status_bar_brightness_control";
+
+        /**
+         * [Miku-Picked UI] Also allow status bar brightness control on the lock screen.
+         * @hide
+         */
+        @Readable
+        public static final String STATUS_BAR_BRIGHTNESS_CONTROL_LOCKSCREEN = "status_bar_brightness_control_lockscreen";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
