@@ -7017,6 +7017,13 @@ public final class Settings {
         @Readable
         public static final String NOTIFICATION_SOUND_VIB_SCREEN_ON = "notification_sound_vib_screen_on";
 
+        /**
+         * [Miku-Picked UI] Show the "4G" network type icon instead of "LTE" (crDroid / Evolution X).
+         * @hide
+         */
+        @Readable
+        public static final String SHOW_FOURG_ICON = "show_fourg_icon";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
