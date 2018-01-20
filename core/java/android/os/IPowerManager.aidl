@@ -184,4 +184,6 @@ interface IPowerManager
     const int GO_TO_SLEEP_REASON_MAX = 10;
     const int GO_TO_SLEEP_FLAG_NO_DOZE = 1 << 0;
 
+    // Miku-Picked UI: advanced restart (from LineageOS via AxionOS)
+    void rebootCustom(boolean confirm, String reason, boolean wait);
 }

@@ -13852,6 +13852,20 @@ public final class Settings {
          */
         @Readable
         public static final String STATUS_BAR_SHOW_LYRIC = "status_bar_show_lyric";
+
+        // ---- Miku-Picked UI (Secure) ----
+
+        /**
+         * Whether the advanced restart submenu (recovery, bootloader, SystemUI...) is
+         * shown in the power menu. From LineageOS via AxionOS.
+         * 0 = disabled, 1 = enabled
+         *
+         * @hide
+         */
+        @Readable
+        public static final String ADVANCED_REBOOT = "advanced_reboot";
+
+        // ---- end Miku-Picked UI (Secure) ----
         
         /**
          * boolean value. toggles swipe up hint in gestural nav mode

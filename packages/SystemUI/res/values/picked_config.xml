@@ -11,4 +11,12 @@
     <bool name="config_statusBarBurnInProtection">@*android:bool/config_enableBurnInProtection</bool>
     <!-- [AxionOS] Interval between subsequent shifting of statusbar and navbar contents, in seconds -->
     <integer name="config_statusBarBurnInProtectionShiftInterval">60</integer>
+
+    <!-- [LineageOS/AxionOS] Actions shown in the advanced restart submenu -->
+    <string-array name="config_restartActionsList" translatable="false">
+        <item>restart</item>
+        <item>restart_recovery</item>
+        <item>restart_bootloader</item>
+        <item>restart_systemui</item>
+    </string-array>
 </resources>
