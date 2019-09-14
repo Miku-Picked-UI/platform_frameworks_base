@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Miku-Picked UI
+     SPDX-License-Identifier: Apache-2.0
+
+     Strings for features picked from Infinity X, AxionOS, uwuAOSP and Evolution X.
+-->
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- [uwuAOSP] Deep sleep info appended to the uptime summary -->
+    <string name="status_deep_sleep">(Deep sleep: <xliff:g id="percent">%1$d</xliff:g><xliff:g id="sign">%2$s</xliff:g>)</string>
+</resources>
