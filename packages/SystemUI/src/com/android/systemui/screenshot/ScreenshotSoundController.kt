@@ -16,8 +16,14 @@
 
 package com.android.systemui.screenshot
 
+import android.content.Context
+import android.media.AudioManager
 import android.media.MediaActionSound
 import android.media.MediaPlayer
+import android.os.UserHandle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.provider.Settings
 import android.util.Log
 import com.android.app.tracing.coroutines.asyncTraced as async
 import com.android.app.tracing.coroutines.launchTraced as launch
@@ -57,6 +63,7 @@ class ScreenshotSoundControllerImpl
 constructor(
     private val soundProvider: ScreenshotSoundProvider,
     private val soundPolicy: ScreenshotSoundPolicy,
+    private val context: Context,
     @Application private val coroutineScope: CoroutineScope,
     @Background private val bgDispatcher: CoroutineDispatcher,
 ) : ScreenshotSoundController {
@@ -80,8 +87,9 @@ constructor(
         withContext(bgDispatcher) {
             try {
                 if (soundPolicy.shouldForceShutterSound()) {
+                    // Required by law in some regions: never muted by the setting below.
                     forcedShutterSound.await()?.play(MediaActionSound.SHUTTER_CLICK)
-                } else {
+                } else if (shouldPlaySound()) {
                     player.await()?.start()
                 }
             } catch (e: IllegalStateException) {
@@ -89,6 +97,30 @@ constructor(
                 releaseScreenshotSound()
             }
         }
+    }
+
+    /**
+     * Miku-Picked UI (from Evolution X / POSP): follow the ringer mode (silent = nothing,
+     * vibrate = a short buzz) and Settings.System.SCREENSHOT_SHUTTER_SOUND.
+     */
+    private fun shouldPlaySound(): Boolean {
+        val audio = context.getSystemService(AudioManager::class.java) ?: return true
+        when (audio.ringerMode) {
+            AudioManager.RINGER_MODE_SILENT -> return false
+            AudioManager.RINGER_MODE_VIBRATE -> {
+                context
+                    .getSystemService(Vibrator::class.java)
+                    ?.takeIf { it.hasVibrator() }
+                    ?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                return false
+            }
+        }
+        return Settings.System.getIntForUser(
+            context.contentResolver,
+            Settings.System.SCREENSHOT_SHUTTER_SOUND,
+            1,
+            UserHandle.USER_CURRENT,
+        ) == 1
     }
 
     override suspend fun releaseScreenshotSound() {

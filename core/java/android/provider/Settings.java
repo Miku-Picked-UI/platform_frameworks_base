@@ -7032,6 +7032,14 @@ public final class Settings {
         @Readable
         public static final String LESS_BORING_HEADS_UP = "less_boring_heads_up";
 
+        /**
+         * [Miku-Picked UI] Play the screenshot sound (ringer mode normal only): 1 = yes (default)
+         * (Evolution X / POSP).
+         * @hide
+         */
+        @Readable
+        public static final String SCREENSHOT_SHUTTER_SOUND = "screenshot_shutter_sound";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**

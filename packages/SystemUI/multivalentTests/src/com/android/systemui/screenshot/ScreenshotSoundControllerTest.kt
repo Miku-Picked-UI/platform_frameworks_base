@@ -131,5 +131,5 @@ class ScreenshotSoundControllerTest : SysuiTestCase() {
     }
 
     private fun createController() =
-        ScreenshotSoundControllerImpl(soundProvider, soundPolicy, scope, bgDispatcher)
+        ScreenshotSoundControllerImpl(soundProvider, soundPolicy, context, scope, bgDispatcher)
 }
