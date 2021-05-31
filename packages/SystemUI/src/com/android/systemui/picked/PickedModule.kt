@@ -10,6 +10,7 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.AutoBrightnessTile
+import com.android.systemui.qs.tiles.SleepModeTile
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
 import com.android.systemui.res.R
@@ -32,6 +33,12 @@ interface PickedModule {
     @StringKey(AutoBrightnessTile.TILE_SPEC)
     fun bindAutoBrightnessTile(autoBrightnessTile: AutoBrightnessTile): QSTileImpl<*>
 
+    /** [Evolution X] Inject SleepModeTile into tileMap in QSModule */
+    @Binds
+    @IntoMap
+    @StringKey(SleepModeTile.TILE_SPEC)
+    fun bindSleepModeTile(sleepModeTile: SleepModeTile): QSTileImpl<*>
+
     companion object {
         /** [uwuAOSP] Auto brightness tile config */
         @Provides
@@ -47,6 +54,22 @@ interface PickedModule {
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.DISPLAY,
+            )
+
+        /** [Evolution X] Sleep Mode tile config */
+        @Provides
+        @IntoMap
+        @StringKey(SleepModeTile.TILE_SPEC)
+        fun provideSleepModeTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(SleepModeTile.TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = com.android.internal.R.drawable.ic_sleep,
+                        labelRes = R.string.quick_settings_sleep_mode_label,
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.UTILITIES,
             )
     }
 }

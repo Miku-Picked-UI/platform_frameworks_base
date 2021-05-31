@@ -341,6 +341,10 @@ import java.util.concurrent.Future;
  */
 public final class SystemServer implements Dumpable {
 
+    // Miku-Picked UI: Sleep Mode (Evolution X)
+    private static final String SLEEP_MODE_SERVICE_CLASS =
+            "com.android.server.power.SleepModeService";
+
     private static final String TAG = "SystemServer";
 
     private static final long SLOW_DISPATCH_THRESHOLD_MS = 100;
@@ -2536,6 +2540,11 @@ public final class SystemServer implements Dumpable {
             if (!isWatch) {
                 t.traceBegin("StartTwilightService");
                 mSystemServiceManager.startService(TwilightService.class);
+                t.traceEnd();
+
+                // Miku-Picked UI: Sleep Mode (Evolution X), needs TwilightService
+                t.traceBegin("StartSleepModeService");
+                mSystemServiceManager.startService(SLEEP_MODE_SERVICE_CLASS);
                 t.traceEnd();
             }
 

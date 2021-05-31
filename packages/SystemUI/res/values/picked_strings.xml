@@ -39,4 +39,7 @@
 
     <!-- [uwuAOSP] Auto brightness tile -->
     <string name="quick_settings_autobrightness_label">Auto brightness</string>
+
+    <!-- [Evolution X] Sleep Mode tile -->
+    <string name="quick_settings_sleep_mode_label">Sleep Mode</string>
 </resources>

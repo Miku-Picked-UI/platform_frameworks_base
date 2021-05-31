@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Miku-Picked UI
+     SPDX-License-Identifier: Apache-2.0
+
+     Private framework symbols for features picked from Infinity X, AxionOS, uwuAOSP
+     and Evolution X.
+-->
+<resources>
+    <!-- [Evolution X] Sleep Mode -->
+    <java-symbol type="drawable" name="ic_sleep" />
+    <java-symbol type="string" name="notification_channel_sleep" />
+    <java-symbol type="string" name="sleep_mode_notification_title" />
+    <java-symbol type="string" name="sleep_mode_notification_content" />
+    <java-symbol type="string" name="sleep_mode_enabled_toast" />
+    <java-symbol type="string" name="sleep_mode_disabled_toast" />
+</resources>

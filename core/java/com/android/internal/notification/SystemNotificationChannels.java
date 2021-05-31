@@ -71,6 +71,8 @@ public class SystemNotificationChannels {
     public static final String ACCESSIBILITY_HEARING_DEVICE = "ACCESSIBILITY_HEARING_DEVICE";
     public static final String ACCESSIBILITY_SECURITY_POLICY = "ACCESSIBILITY_SECURITY_POLICY";
     public static final String ABUSIVE_BACKGROUND_APPS = "ABUSIVE_BACKGROUND_APPS";
+    // Miku-Picked UI: Sleep Mode (Evolution X)
+    public static final String SLEEP = "SLEEP";
 
     @VisibleForTesting
     static final String OBSOLETE_DO_NOT_DISTURB = "DO_NOT_DISTURB";
@@ -229,6 +231,12 @@ public class SystemNotificationChannels {
                 context.getString(R.string.notification_channel_abusive_bg_apps),
                 NotificationManager.IMPORTANCE_LOW);
         channelsList.add(abusiveBackgroundAppsChannel);
+
+        // Miku-Picked UI: Sleep Mode (Evolution X)
+        NotificationChannel sleepModeChanges = new NotificationChannel(SLEEP,
+                context.getString(R.string.notification_channel_sleep),
+                NotificationManager.IMPORTANCE_LOW);
+        channelsList.add(sleepModeChanges);
 
         nm.createNotificationChannels(channelsList);
 

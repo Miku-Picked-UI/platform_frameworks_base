@@ -13972,6 +13972,69 @@ public final class Settings {
         @Readable
         public static final String ADVANCED_REBOOT = "advanced_reboot";
 
+        /**
+         * Whether to enable Sleep Mode (Evolution X)
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_ENABLED = "sleep_mode_enabled";
+
+        /**
+         * Whether Sleep Mode turns on automatically. 0 = disabled (default), 1 = from sunset to sunrise, 2 = custom time, 3 = from sunset till a time, 4 = from a time till sunrise
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_AUTO_MODE = "sleep_mode_auto_mode";
+
+        /**
+         * Custom time for Sleep Mode, format "HH:mm,HH:mm" (since,till)
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_AUTO_TIME = "sleep_mode_auto_time";
+
+        /**
+         * Whether to disable Wi-Fi in Sleep Mode
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_WIFI_TOGGLE = "sleep_mode_wifi_toggle";
+
+        /**
+         * Whether to disable Bluetooth in Sleep Mode
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_BLUETOOTH_TOGGLE = "sleep_mode_bluetooth_toggle";
+
+        /**
+         * Whether to disable mobile data in Sleep Mode
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_CELLULAR_TOGGLE = "sleep_mode_cellular_toggle";
+
+        /**
+         * Whether to disable sensors in Sleep Mode
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_SENSORS_TOGGLE = "sleep_mode_sensors_toggle";
+
+        /**
+         * Whether to reduce background activity in Sleep Mode
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_IDLE_TOGGLE = "sleep_mode_idle_toggle";
+
+        /**
+         * Ringer in Sleep Mode (0: off, 1: vibrate, 2: DND, 3: silent)
+         * @hide
+         */
+        @Readable
+        public static final String SLEEP_MODE_RINGER_MODE = "sleep_mode_ringer_mode";
+
         // ---- end Miku-Picked UI (Secure) ----
         
         /**
