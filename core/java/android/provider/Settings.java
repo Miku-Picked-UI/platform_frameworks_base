@@ -7009,6 +7009,14 @@ public final class Settings {
         public static final String PICKED_CHARGING_CONTROL_TARGET_TIME =
                 "picked_charging_control_target_time";
 
+        /**
+         * [Miku-Picked UI] Play notification sound and vibration while the screen is on: 1 = yes (default),
+         * 0 = only with the screen off (Evolution X / crDroid).
+         * @hide
+         */
+        @Readable
+        public static final String NOTIFICATION_SOUND_VIB_SCREEN_ON = "notification_sound_vib_screen_on";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
