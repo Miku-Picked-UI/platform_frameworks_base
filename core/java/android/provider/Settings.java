@@ -6758,6 +6758,17 @@ public final class Settings {
          */
         public static final String STATUSBAR_COLORED_ICONS = "statusbar_colored_icons";
 
+        // ---- Miku-Picked UI (System) ----
+
+        /**
+         * Comma separated list of packages forced to draw into the display cutout.
+         * From uwuAOSP.
+         * @hide
+         */
+        public static final String FORCE_FULLSCREEN_CUTOUT_APPS = "force_full_screen_cutout_apps";
+
+        // ---- end Miku-Picked UI (System) ----
+
         /**
          * These are all public system settings
          *
@@ -6824,6 +6835,7 @@ public final class Settings {
         public static final Set<String> PRIVATE_SETTINGS = new ArraySet<>();
         static {
             PRIVATE_SETTINGS.add(WIFI_USE_STATIC_IP);
+            PRIVATE_SETTINGS.add(FORCE_FULLSCREEN_CUTOUT_APPS);
             PRIVATE_SETTINGS.add(END_BUTTON_BEHAVIOR);
             PRIVATE_SETTINGS.add(ADVANCED_SETTINGS);
             PRIVATE_SETTINGS.add(ACCESSIBILITY_FORCE_INVERT_COLOR_OVERRIDE_PACKAGES_TO_DISABLE);
