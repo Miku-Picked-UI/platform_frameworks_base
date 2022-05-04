@@ -134,6 +134,7 @@ import com.android.systemui.statusbar.NotificationLockscreenUserManager;
 import com.android.systemui.statusbar.NotificationShadeWindowController;
 import com.android.systemui.statusbar.chips.StatusBarChipsModule;
 import com.android.systemui.statusbar.connectivity.ConnectivityModule;
+import com.android.systemui.picked.PickedModule;
 import com.android.systemui.statusbar.dagger.StatusBarModule;
 import com.android.systemui.statusbar.disableflags.dagger.DisableFlagsModule;
 import com.android.systemui.statusbar.domain.interactor.StatusBarRegionSamplingInteractorModule;
@@ -242,6 +243,7 @@ import javax.inject.Named;
         CommonUsageStatsDataLayerModule.class,
         ConfigurationControllerModule.class,
         ConnectivityModule.class,
+        PickedModule.class,
         ControlsModule.class,
         DemoModeModule.class,
         DesktopModule.class,

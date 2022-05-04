@@ -36,4 +36,7 @@
     <!-- [AxionOS] 5G Quick Settings tile -->
     <string name="quick_settings_5g_label">5G</string>
     <string name="quick_settings_5g_editor_label">5G</string>
+
+    <!-- [uwuAOSP] Auto brightness tile -->
+    <string name="quick_settings_autobrightness_label">Auto brightness</string>
 </resources>
