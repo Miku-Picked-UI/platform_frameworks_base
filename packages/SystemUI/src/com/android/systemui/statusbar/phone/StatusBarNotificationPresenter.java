@@ -191,6 +191,9 @@ class StatusBarNotificationPresenter implements NotificationPresenter, CommandQu
             } else {
                 visualInterruptionDecisionProvider.addLegacySuppressor(mInterruptSuppressor);
             }
+            // Miku-Picked UI: less boring heads up (crDroid / Lunaris).
+            mLessBoringSuppressor = new LessBoringHeadsUpSuppressor(context);
+            visualInterruptionDecisionProvider.addLegacySuppressor(mLessBoringSuppressor);
             mLockscreenUserManager.setUpWithPresenter(this);
             mGutsManager.setUpWithPresenter(
                     this, mNotifListContainer, mOnSettingsClickListener);
@@ -234,6 +237,7 @@ class StatusBarNotificationPresenter implements NotificationPresenter, CommandQu
         // End old BaseStatusBar.userSwitched
         mCommandQueue.animateCollapsePanels();
         mMediaManager.clearCurrentMediaNotification();
+        if (mLessBoringSuppressor != null) mLessBoringSuppressor.onUserSwitched();
     }
 
     @Override
@@ -320,6 +324,8 @@ class StatusBarNotificationPresenter implements NotificationPresenter, CommandQu
             }
         }
     };
+
+    private LessBoringHeadsUpSuppressor mLessBoringSuppressor;
 
     private final NotificationInterruptSuppressor mInterruptSuppressor =
             new NotificationInterruptSuppressor() {

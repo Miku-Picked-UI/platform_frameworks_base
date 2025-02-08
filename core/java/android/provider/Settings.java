@@ -7024,6 +7024,14 @@ public final class Settings {
         @Readable
         public static final String SHOW_FOURG_ICON = "show_fourg_icon";
 
+        /**
+         * [Miku-Picked UI] Less boring heads up: only calls, alarms, the dialer and messaging apps pop up
+         * while the screen is on (crDroid / Lunaris).
+         * @hide
+         */
+        @Readable
+        public static final String LESS_BORING_HEADS_UP = "less_boring_heads_up";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
