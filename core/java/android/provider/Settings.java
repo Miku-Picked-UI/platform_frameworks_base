@@ -14081,6 +14081,13 @@ public final class Settings {
         @Readable
         public static final String SLEEP_MODE_RINGER_MODE = "sleep_mode_ringer_mode";
 
+        /**
+         * Volume dialog slider haptic feedback (1 = on, default).
+         * From Evolution X.
+         * @hide
+         */
+        public static final String VOLUME_DIALOG_HAPTIC_FEEDBACK = "volume_dialog_haptic_feedback";
+
         // ---- end Miku-Picked UI (Secure) ----
         
         /**
