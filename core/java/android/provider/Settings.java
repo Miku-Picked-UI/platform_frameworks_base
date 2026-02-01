@@ -6854,6 +6854,14 @@ public final class Settings {
          */
         public static final String QS_TILE_ANIMATION_STYLE = "qs_tile_animation_style";
 
+        /**
+         * Custom carrier label shown instead of the network name (Evolution X).
+         * Empty or unset = show the real carrier name.
+         * @hide
+         */
+        public static final String LOCKSCREEN_SHOW_CUSTOM_CARRIER_TEXT =
+                "lockscreen_show_custom_carrier_text";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**

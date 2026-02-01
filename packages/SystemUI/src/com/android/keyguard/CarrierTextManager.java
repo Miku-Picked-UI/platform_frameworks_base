@@ -27,6 +27,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.database.ContentObserver;
+import android.net.Uri;
+import android.os.UserHandle;
+import android.provider.Settings;
 import android.os.Trace;
 import android.telephony.ServiceState;
 import android.telephony.SubscriptionInfo;
@@ -75,6 +79,18 @@ public class CarrierTextManager {
     private final boolean mIsEmergencyCallCapable;
     private final Executor mMainExecutor;
     private final Executor mBgExecutor;
+
+    // [Evolution X] Custom carrier label, empty = use the real carrier name
+    private volatile String mCustomCarrierText = "";
+    private final ContentObserver mCustomCarrierTextObserver = new ContentObserver(null) {
+        @Override
+        public void onChange(boolean selfChange, Uri uri) {
+            mBgExecutor.execute(() -> {
+                updateCustomCarrierText();
+                updateCarrierText();
+            });
+        }
+    };
     private boolean mTelephonyCapable;
     private final boolean mShowMissingSim;
     private final boolean mShowAirplaneMode;
@@ -222,6 +238,10 @@ public class CarrierTextManager {
         mKeyguardUpdateMonitor = keyguardUpdateMonitor;
         mLogger = logger;
         mBgExecutor.execute(() -> {
+            mContext.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(Settings.System.LOCKSCREEN_SHOW_CUSTOM_CARRIER_TEXT),
+                    false, mCustomCarrierTextObserver, UserHandle.USER_ALL);
+            updateCustomCarrierText();
             if (hasTelephony && mNetworkSupported.compareAndSet(false, hasTelephony)) {
                 // This will set/remove the listeners appropriately. Note that it will never double
                 // add the listeners.
@@ -235,6 +255,12 @@ public class CarrierTextManager {
 
     private TelephonyManager getTelephonyManager() {
         return mTelephonyManager;
+    }
+
+    private void updateCustomCarrierText() {
+        final String text = Settings.System.getStringForUser(mContext.getContentResolver(),
+                Settings.System.LOCKSCREEN_SHOW_CUSTOM_CARRIER_TEXT, UserHandle.USER_CURRENT);
+        mCustomCarrierText = text != null ? text.trim() : "";
     }
 
     /**
@@ -456,6 +482,13 @@ public class CarrierTextManager {
         }
 
         boolean isInSatelliteMode = mSatelliteCarrierText != null;
+
+        // [Evolution X] Allow the user to override the carrier label
+        final String customCarrierText = mCustomCarrierText;
+        if (!isInSatelliteMode && !TextUtils.isEmpty(customCarrierText)) {
+            displayText = customCarrierText;
+        }
+
         final CarrierTextCallbackInfo info = new CarrierTextCallbackInfo(
                 displayText,
                 carrierNames,

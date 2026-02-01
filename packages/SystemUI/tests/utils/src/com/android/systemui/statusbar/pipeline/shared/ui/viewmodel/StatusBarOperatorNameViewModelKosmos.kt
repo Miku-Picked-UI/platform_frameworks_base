@@ -17,7 +17,11 @@
 package com.android.systemui.statusbar.pipeline.shared.ui.viewmodel
 
 import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.mobileIconsInteractor
+import com.android.systemui.util.settings.fakeSettings
 
 val Kosmos.statusBarOperatorNameViewModel by
-    Kosmos.Fixture { StatusBarOperatorNameViewModel(mobileIconsInteractor) }
+    Kosmos.Fixture {
+        StatusBarOperatorNameViewModel(mobileIconsInteractor, fakeSettings, testDispatcher)
+    }
