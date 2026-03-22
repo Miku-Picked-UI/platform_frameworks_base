@@ -6901,6 +6901,13 @@ public final class Settings {
          */
         public static final String MEDIA_WAVEFORM_SEEKBAR = "media_waveform_seekbar";
 
+        /**
+         * Whether to crop the status bar out of full screen screenshots.
+         * From Lunaris AOSP.
+         * @hide
+         */
+        public static final String HIDE_STATUS_BAR_IN_SCREENSHOT = "hide_status_bar_in_screenshot";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
