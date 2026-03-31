@@ -32,4 +32,8 @@
     <string name="global_action_restart_download_progress">Restarting to download mode\u2026</string>
     <!-- Restart to fastboot mode progress dialog. -->
     <string name="global_action_restart_fastboot_progress">Restarting to fastbootd mode\u2026</string>
+
+    <!-- [AxionOS] 5G Quick Settings tile -->
+    <string name="quick_settings_5g_label">5G</string>
+    <string name="quick_settings_5g_editor_label">5G</string>
 </resources>
