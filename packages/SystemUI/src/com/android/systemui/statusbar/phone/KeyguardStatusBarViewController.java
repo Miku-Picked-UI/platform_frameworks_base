@@ -81,6 +81,7 @@ import com.android.systemui.statusbar.notification.AnimatableProperty;
 import com.android.systemui.statusbar.notification.PropertyAnimator;
 import com.android.systemui.statusbar.notification.stack.AnimationProperties;
 import com.android.systemui.statusbar.notification.stack.StackStateAnimator;
+import com.android.systemui.statusbar.featurepods.popups.ui.binder.KeyguardDynamicIslandViewBinder;
 import com.android.systemui.statusbar.phone.domain.interactor.DarkIconInteractor;
 import com.android.systemui.statusbar.phone.fragment.StatusBarIconBlocklistKt;
 import com.android.systemui.statusbar.phone.fragment.StatusBarSystemEventDefaultAnimator;
@@ -167,6 +168,7 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
     private final OccludedToLockscreenTransitionViewModel mOccludedToLockscreenTransitionViewModel;
     private final DreamViewModel mDreamViewModel;
     private final KeyguardInteractor mKeyguardInteractor;
+    private final KeyguardDynamicIslandViewBinder mDynamicIslandViewBinder;
 
     @Nullable private ComposeView mBatteryComposeView;
     private ViewGroup mSystemIconsContainer;
@@ -391,9 +393,11 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
             GoneToGlanceableHubTransitionViewModel goneToGlanceableHubTransitionViewModel,
             OccludedToLockscreenTransitionViewModel occludedToLockscreenTransitionViewModel,
             DreamViewModel dreamViewModel,
-            KeyguardInteractor keyguardInteractor
+            KeyguardInteractor keyguardInteractor,
+            KeyguardDynamicIslandViewBinder dynamicIslandViewBinder
     ) {
         super(view);
+        mDynamicIslandViewBinder = dynamicIslandViewBinder;
         mCoroutineDispatcher = dispatcher;
         mContext = context;
         mCarrierTextController = carrierTextController;
@@ -462,6 +466,8 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
     protected void onInit() {
         super.onInit();
         mCarrierTextController.init();
+        // Lunaris Bar on the lock screen.
+        mDynamicIslandViewBinder.bind(mView);
         if (!NewStatusBarIcons.isEnabled()) {
             mBatteryMeterViewController.init();
         }

@@ -6878,6 +6878,29 @@ public final class Settings {
          */
         public static final String QS_SPLIT_NOTIFICATION = "qs_split_notification";
 
+        /**
+         * Whether to show the Lunaris Bar (dynamic island) in the status bar.
+         * From Lunaris AOSP.
+         * @hide
+         */
+        public static final String STATUS_BAR_SHOW_DYNAMIC_ISLAND = "status_bar_show_dynamic_island";
+
+        /**
+         * Whether to hide the Lunaris Bar in landscape.
+         * From Lunaris AOSP.
+         * @hide
+         */
+        public static final String STATUS_BAR_DYNAMIC_ISLAND_DISABLE_IN_LANDSCAPE =
+                "status_bar_dynamic_island_disable_in_landscape";
+
+        /**
+         * Media seekbar style used by the Lunaris Bar media popup:
+         * 0 for default, 1 for waveform, 2 for glowing, 3 for gradient wave, 4 for COS.
+         * From Lunaris AOSP.
+         * @hide
+         */
+        public static final String MEDIA_WAVEFORM_SEEKBAR = "media_waveform_seekbar";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**

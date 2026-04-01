@@ -18,9 +18,11 @@ package com.android.systemui.statusbar.pipeline.shared.ui.composable
 
 import android.content.Context
 import android.graphics.Rect
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.annotation.VisibleForTesting
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +34,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.getValue
@@ -56,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.android.compose.theme.PlatformTheme
 import com.android.compose.theme.colorAttr
-import com.android.keyguard.AlphaOptimizedLinearLayout
 import com.android.systemui.Flags
 import com.android.systemui.clock.ui.viewmodel.AmPmStyle
 import com.android.systemui.clock.ui.viewmodel.ClockViewModel
@@ -83,8 +87,12 @@ import com.android.systemui.statusbar.core.RudimentaryBattery
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.core.StatusBarForDesktop
 import com.android.systemui.statusbar.events.domain.interactor.SystemStatusEventAnimationInteractor
-import com.android.systemui.statusbar.featurepods.popups.StatusBarPopupChips
-import com.android.systemui.statusbar.featurepods.popups.ui.compose.StatusBarPopupChipsContainer
+import com.android.systemui.statusbar.featurepods.popups.shared.DynamicIslandFeatureSettings.observeDynamicIslandEnabled
+import com.android.systemui.statusbar.featurepods.popups.ui.compose.LocalDynamicIslandIconBounds
+import com.android.systemui.statusbar.featurepods.popups.ui.compose.StatusBarDynamicIslandContainer
+import com.android.systemui.statusbar.featurepods.popups.ui.compose.dynamicIslandIconFade
+import com.android.systemui.statusbar.featurepods.popups.ui.view.DynamicIslandIconFader
+import com.android.systemui.statusbar.featurepods.popups.ui.view.DynamicIslandIconState
 import com.android.systemui.statusbar.layout.ui.viewmodel.AppHandlesViewModel
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.ConnectedDisplaysStatusBarNotificationIconViewStore
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.NotificationIconContainerStatusBarViewBinder
@@ -223,15 +231,14 @@ fun StatusBarRoot(
         }
     var touchableExclusionRegionDisposableHandle: DisposableHandle? = null
 
-    if (StatusBarPopupChips.isEnabled) {
-        with(mediaHost) {
-            expansion = MediaHostState.EXPANDED
-            expandedMatchesParentHeight = true
-            showsOnlyActiveMedia = true
-            falsingProtectionNeeded = false
-            disableScrolling = true
-            init(MediaHierarchyManager.LOCATION_STATUS_BAR_POPUP)
-        }
+    // Lunaris Bar: the status bar media popup host is always set up.
+    with(mediaHost) {
+        expansion = MediaHostState.EXPANDED
+        expandedMatchesParentHeight = true
+        showsOnlyActiveMedia = true
+        falsingProtectionNeeded = false
+        disableScrolling = true
+        init(MediaHierarchyManager.LOCATION_STATUS_BAR_POPUP)
     }
 
     // Let the DesktopStatusBar compose all the UI if [useDesktopStatusBar] is true.
@@ -256,6 +263,16 @@ fun StatusBarRoot(
                 val phoneStatusBarView =
                     inflater.inflate(R.layout.status_bar, parent, false) as PhoneStatusBarView
 
+                // Lunaris Bar: status bar icons under the bar fade out while it is expanded.
+                val islandBoundsState = mutableStateOf(DynamicIslandIconState())
+                val iconFader =
+                    DynamicIslandIconFader(phoneStatusBarView) { bounds ->
+                        islandBoundsState.value = bounds
+                    }
+                phoneStatusBarView.repeatWhenAttached {
+                    observeDynamicIslandEnabled(context).collect { iconFader.setEnabled(it) }
+                }
+
                 if (StatusBarChipsModernization.isEnabled) {
                     addStartSideComposable(
                         phoneStatusBarView = phoneStatusBarView,
@@ -264,6 +281,7 @@ fun StatusBarRoot(
                         iconViewStore = iconViewStore,
                         appHandlesViewModel = appHandlesViewModel,
                         context = context,
+                        islandBoundsState = islandBoundsState,
                     )
                 }
 
@@ -296,50 +314,59 @@ fun StatusBarRoot(
                         R.id.notificationIcons
                     )
 
-                // Add a composable container for `StatusBarPopupChip`s
-                if (StatusBarPopupChips.isEnabled) {
-                    val endSideContent =
-                        phoneStatusBarView.requireViewById<AlphaOptimizedLinearLayout>(
-                            R.id.status_bar_end_side_content
+                // Lunaris Bar: a composable container for the popup chips, centered over the
+                // status bar (replaces the AOSP end-side `StatusBarPopupChip` container).
+                val centeredArea =
+                    phoneStatusBarView.requireViewById<FrameLayout>(R.id.centered_area).apply {
+                        clipChildren = false
+                        clipToPadding = false
+                    }
+
+                val islandComposeView =
+                    ComposeView(context).apply {
+                        clipChildren = false
+                        clipToPadding = false
+                        layoutParams =
+                            FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                                )
+                                .apply { gravity = Gravity.CENTER }
+
+                        setViewCompositionStrategy(
+                            if (SceneContainerFlag.isEnabled) {
+                                ViewCompositionStrategy.Default
+                            } else {
+                                ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+                            }
                         )
 
-                    val composeView =
-                        ComposeView(context).apply {
-                            layoutParams =
-                                LinearLayout.LayoutParams(
-                                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                                )
-
-                            setViewCompositionStrategy(
-                                if (SceneContainerFlag.isEnabled) {
-                                    ViewCompositionStrategy.Default
-                                } else {
-                                    ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
-                                }
+                        setContent {
+                            StatusBarDynamicIslandContainer(
+                                chips = statusBarViewModel.popupChips,
+                                mediaTransitionChip = statusBarViewModel.mediaTransitionChip,
+                                onMediaControlPopupVisibilityChanged = { popupShowing ->
+                                    mediaHierarchyManager.isMediaControlPopupShowing =
+                                        popupShowing
+                                },
+                                onIslandBoundsChanged = iconFader::update,
+                                onIslandActiveChanged = { active ->
+                                    visibility = if (active) View.VISIBLE else View.GONE
+                                },
+                                onIslandMotionChanged = iconFader::setMotionSettings,
                             )
-
-                            setContent {
-                                StatusBarPopupChipsContainer(
-                                    chips = statusBarViewModel.popupChips,
-                                    mediaViewModelFactory = mediaViewModelFactory,
-                                    mediaHost = mediaHost,
-                                    onMediaControlPopupVisibilityChanged = { popupShowing ->
-                                        mediaHierarchyManager.isMediaControlPopupShowing =
-                                            popupShowing
-                                    },
-                                )
-                            }
                         }
-                    endSideContent.addView(composeView, 0)
-                }
+                    }
+                centeredArea.addView(islandComposeView)
+
+                iconFader.attach(islandComposeView)
 
                 // If the flag is enabled, create and add a compose section to the end
                 // of the system_icons container
                 if (SystemStatusIconsInCompose.isEnabled) {
                     phoneStatusBarView.requireViewById<View>(R.id.system_icons).visibility =
                         View.GONE
-                    addEndSideComposable(phoneStatusBarView, statusBarViewModel)
+                    addEndSideComposable(phoneStatusBarView, statusBarViewModel, islandBoundsState)
                 } else {
                     val statusIconContainer =
                         phoneStatusBarView.requireViewById<StatusIconContainer>(R.id.statusIcons)
@@ -405,6 +432,7 @@ private fun addStartSideComposable(
     iconViewStore: NotificationIconContainerViewBinder.IconViewStore?,
     appHandlesViewModel: AppHandlesViewModel,
     context: Context,
+    islandBoundsState: MutableState<DynamicIslandIconState>,
 ) {
     val startSideExceptHeadsUp =
         phoneStatusBarView.requireViewById<LinearLayout>(R.id.status_bar_start_side_except_heads_up)
@@ -494,7 +522,10 @@ private fun addStartSideComposable(
                         // TODO(b/393581408): Now that we always enforce a max width on the chips,
                         //  we should be able to convert the chips to a LazyRow and get some
                         //  animations for free.
-                        modifier = Modifier.sysUiResTagContainer().widthIn(max = chipsMaxWidth),
+                        modifier =
+                            Modifier.sysUiResTagContainer()
+                                .widthIn(max = chipsMaxWidth)
+                                .dynamicIslandIconFade(islandBoundsState.value),
                     )
                 }
             }
@@ -593,6 +624,7 @@ private fun addBatteryComposable(
 private fun addEndSideComposable(
     phoneStatusBarView: PhoneStatusBarView,
     statusBarViewModel: HomeStatusBarViewModel,
+    islandBoundsState: State<DynamicIslandIconState>,
 ) {
     val endSideContainerView =
         phoneStatusBarView.requireViewById<View>(R.id.status_bar_end_side_container)
@@ -601,41 +633,49 @@ private fun addEndSideComposable(
             setContent {
                 val endSideWidth by rememberViewWidthAsState(endSideContainerView)
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier =
-                        Modifier.widthIn(max = with(LocalDensity.current) { endSideWidth.toDp() }),
-                ) {
-                    SystemStatusIconsContainer(
-                        viewModelFactory = statusBarViewModel.systemStatusIconsViewModelFactory,
-                        isDark = statusBarViewModel.areaDark,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
+                CompositionLocalProvider(LocalDynamicIslandIconBounds provides islandBoundsState) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier =
+                            Modifier.widthIn(max = with(LocalDensity.current) { endSideWidth.toDp() }),
+                    ) {
+                        SystemStatusIconsContainer(
+                            viewModelFactory = statusBarViewModel.systemStatusIconsViewModelFactory,
+                            isDark = statusBarViewModel.areaDark,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
 
-                    if (RudimentaryBattery.isEnabled) {
-                        BatteryWithChargeStatus(
-                            viewModelFactory = statusBarViewModel.batteryNextToPercentViewModel,
-                            isDarkProvider = { statusBarViewModel.areaDark },
-                            showPercentMode = ShowPercentMode.FollowSetting,
-                            modifier = Modifier.sysUiResTagContainer().wrapContentSize(),
-                        )
-                    } else {
-                        val height =
-                            with(LocalDensity.current) {
-                                BatteryViewModel.getStatusBarBatteryHeight(LocalContext.current)
-                                    .toDp()
-                            }
-                        val viewModel =
-                            rememberViewModel(traceName = "UnifiedBattery") {
-                                statusBarViewModel.unifiedBatteryViewModel.create()
-                            }
-                        UnifiedBattery(
-                            viewModel = viewModel,
-                            isDarkProvider = { statusBarViewModel.areaDark },
-                            modifier =
-                                Modifier.sysUiResTagContainer().height(height).wrapContentWidth(),
-                        )
+                        if (RudimentaryBattery.isEnabled) {
+                            BatteryWithChargeStatus(
+                                viewModelFactory = statusBarViewModel.batteryNextToPercentViewModel,
+                                isDarkProvider = { statusBarViewModel.areaDark },
+                                showPercentMode = ShowPercentMode.FollowSetting,
+                                modifier =
+                                    Modifier.sysUiResTagContainer()
+                                        .wrapContentSize()
+                                        .dynamicIslandIconFade(),
+                            )
+                        } else {
+                            val height =
+                                with(LocalDensity.current) {
+                                    BatteryViewModel.getStatusBarBatteryHeight(LocalContext.current)
+                                        .toDp()
+                                }
+                            val viewModel =
+                                rememberViewModel(traceName = "UnifiedBattery") {
+                                    statusBarViewModel.unifiedBatteryViewModel.create()
+                                }
+                            UnifiedBattery(
+                                viewModel = viewModel,
+                                isDarkProvider = { statusBarViewModel.areaDark },
+                                modifier =
+                                    Modifier.sysUiResTagContainer()
+                                        .height(height)
+                                        .wrapContentWidth()
+                                        .dynamicIslandIconFade(),
+                            )
+                        }
                     }
                 }
             }
