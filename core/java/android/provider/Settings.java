@@ -6848,6 +6848,12 @@ public final class Settings {
          */
         public static final String STATUS_BAR_LOGO_STYLE = "status_bar_logo_style";
 
+        /**
+         * Select QS tile animation style (Evolution X)
+         * @hide
+         */
+        public static final String QS_TILE_ANIMATION_STYLE = "qs_tile_animation_style";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
