@@ -262,7 +262,7 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
                         if (SceneContainerFlag.isEnabled()) {
                             mSceneInteractor.get().onRemoteUserInputStarted("launcher swipe");
                         } else {
-                            mShadeViewControllerLazy.get().startInputFocusTransfer();
+                            mShadeViewControllerLazy.get().startInputFocusTransfer(event);
                         }
                     }
                     if (action == ACTION_UP || action == ACTION_CANCEL) {

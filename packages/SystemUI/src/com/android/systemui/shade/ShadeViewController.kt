@@ -79,6 +79,14 @@ interface ShadeViewController {
      */
     @Deprecated("No longer supported. Do not add new calls to this.") fun startInputFocusTransfer()
 
+    /**
+     * Like [startInputFocusTransfer], with the launcher's down event so the Lunaris split shade
+     * can pick notifications or QS from where the swipe started.
+     */
+    fun startInputFocusTransfer(event: MotionEvent) {
+        @Suppress("DEPRECATION") startInputFocusTransfer()
+    }
+
     /** Triggered when the input focus transfer was cancelled. */
     @Deprecated("No longer supported. Do not add new calls to this.") fun cancelInputFocusTransfer()
 

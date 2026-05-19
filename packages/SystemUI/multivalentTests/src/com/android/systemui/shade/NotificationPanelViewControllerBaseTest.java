@@ -656,7 +656,8 @@ public class NotificationPanelViewControllerBaseTest extends SysuiTestCase {
                 new ResourcesSplitShadeStateController(),
                 () -> mKosmos.getCommunalTransitionViewModel(),
                 () -> mLargeScreenHeaderHelper,
-                mWindowManagerProvider
+                mWindowManagerProvider,
+                mTunerService
         );
     }
 

@@ -35,15 +35,18 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.Fragment;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Insets;
 import android.graphics.Rect;
 import android.graphics.Region;
+import android.provider.Settings;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 import android.util.MathUtils;
 import android.view.Display;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.VelocityTracker;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
@@ -65,6 +68,7 @@ import com.android.internal.policy.ScreenDecorationsUtils;
 import com.android.internal.policy.SystemBarUtils;
 import com.android.systemui.DejankUtils;
 import com.android.systemui.Dumpable;
+import com.android.systemui.animation.ShadeInterpolation;
 import com.android.systemui.classifier.Classifier;
 import com.android.systemui.communal.ui.viewmodel.CommunalTransitionViewModel;
 import com.android.systemui.dagger.SysUISingleton;
@@ -104,6 +108,7 @@ import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager;
 import com.android.systemui.statusbar.policy.CastController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.policy.SplitShadeStateController;
+import com.android.systemui.tuner.TunerService;
 import com.android.systemui.util.LargeScreenUtils;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.utils.windowmanager.WindowManagerProvider;
@@ -125,6 +130,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     public static final String TAG = "QuickSettingsController";
 
     public static final int SHADE_BACK_ANIM_SCALE_MULTIPLIER = 100;
+
+    private static final String QS_SPLIT_SHADE_SETTING =
+            "system:" + Settings.System.QS_SPLIT_SHADE;
 
     private QS mQs;
     private final Lazy<NotificationPanelViewController> mPanelViewControllerLazy;
@@ -168,6 +176,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     private final AccessibilityManager mAccessibilityManager;
     private final MetricsLogger mMetricsLogger;
     private final Resources mResources;
+    private final TunerService mTunerService;
 
     /** Whether the notifications are displayed full width (no margins on the side). */
     private boolean mIsFullWidth;
@@ -285,6 +294,12 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     /** The duration of the notification bounds animation. */
     private long mNotificationBoundsAnimationDuration;
 
+    /** Lunaris split shade: swipe down on the left for notifications, on the right for QS. */
+    private boolean mQsSplitShadeEnabledLegacy;
+    private boolean mSwipeInProgress = false;
+    private boolean mLegacySplitShadeVisibilityApplied = false;
+    private int mQsPanelPaddingTop;
+
     private final Region mInterceptRegion = new Region();
     /** The end bounds of a clipping animation. */
     private final Rect mClippingAnimationEndBounds = new Rect();
@@ -352,7 +367,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             SplitShadeStateController splitShadeStateController,
             Lazy<CommunalTransitionViewModel> communalTransitionViewModelLazy,
             Lazy<LargeScreenHeaderHelper> largeScreenHeaderHelperLazy,
-            WindowManagerProvider windowManagerProvider
+            WindowManagerProvider windowManagerProvider,
+            TunerService tunerService
     ) {
         SceneContainerFlag.assertInLegacyMode();
         mPanelViewControllerLazy = panelViewControllerLazy;
@@ -400,6 +416,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mActiveNotificationsInteractor = activeNotificationsInteractor;
         mCommunalTransitionViewModelLazy = communalTransitionViewModelLazy;
         mJavaAdapter = javaAdapter;
+        mTunerService = tunerService;
 
         mLockscreenShadeTransitionController.addCallback(new LockscreenShadeTransitionCallback());
         dumpManager.registerDumpable(this);
@@ -446,9 +463,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     void updateResources() {
         mSplitShadeEnabled = mSplitShadeStateController.shouldUseSplitNotificationShade(mResources);
-        if (mQs != null) {
-            mQs.setInSplitShade(mSplitShadeEnabled);
-        }
+        updateQsSplitShadeState();
         mSplitShadeNotificationsScrimMarginBottom =
                 mResources.getDimensionPixelSize(
                         R.dimen.split_shade_notifications_scrim_margin_bottom);
@@ -463,6 +478,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mAmbientState.setStackTopMargin(topMargin);
 
         mQuickQsHeaderHeight = mLargeScreenShadeHeaderHeight;
+        mQsPanelPaddingTop = mResources.getDimensionPixelSize(R.dimen.qs_panel_padding_top);
 
         mEnableClipping = mResources.getBoolean(R.bool.qs_enable_clipping);
         updateGestureInsetsCache();
@@ -602,7 +618,36 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                         MotionEvent.BUTTON_SECONDARY) || event.isButtonPressed(
                         MotionEvent.BUTTON_TERTIARY));
 
-        return twoFingerDrag || stylusButtonClickDrag || mouseButtonClickDrag;
+        boolean splitShadeQsSide = false;
+        if (isLegacySplitShadeActive()) {
+            final int measuredWidth = mPanelView != null ? mPanelView.getMeasuredWidth()
+                    : (mQs != null && mQs.getView() != null ? mQs.getView().getMeasuredWidth() : 0);
+            // The launcher's first gesture can arrive before the shade has been measured.
+            final float w = measuredWidth > 0 ? measuredWidth : mCachedWindowWidth;
+            final float halfRegion = w / 2.f;
+            final float x = event.getX();
+            final boolean isRtl = mPanelView != null && mPanelView.isLayoutRtl();
+            splitShadeQsSide = isRtl ? x < halfRegion : w - halfRegion < x;
+        }
+
+        return twoFingerDrag || splitShadeQsSide || stylusButtonClickDrag || mouseButtonClickDrag;
+    }
+
+    @Override
+    public boolean getSplitShadeEnabledLegacy() {
+        return isLegacySplitShadeEligible();
+    }
+
+    /** Lunaris split shade is only used in portrait; landscape keeps the normal shade. */
+    private boolean isLegacySplitShadeEligible() {
+        return mQsSplitShadeEnabledLegacy
+                && mResources.getConfiguration().orientation
+                        == Configuration.ORIENTATION_PORTRAIT;
+    }
+
+    /** Lunaris split shade is in effect: enabled, portrait and on the unlocked shade. */
+    private boolean isLegacySplitShadeActive() {
+        return isLegacySplitShadeEligible() && mBarState == StatusBarState.SHADE;
     }
 
     @Override
@@ -687,7 +732,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     public boolean shouldQuickSettingsIntercept(float x, float y, float yDiff) {
         boolean keyguardShowing = mBarState == KEYGUARD;
         if (!isExpansionEnabled() || mCollapsedOnDown || (keyguardShowing
-                && mKeyguardBypassController.getBypassEnabled()) || mSplitShadeEnabled) {
+                && mKeyguardBypassController.getBypassEnabled()) || mSplitShadeEnabled
+                || isLegacySplitShadeActive()) {
             return false;
         }
         int headerTop, headerBottom;
@@ -723,7 +769,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     /** Returns amount header should be translated */
     private float getHeaderTranslation() {
-        if (mSplitShadeEnabled) {
+        if (mSplitShadeEnabled || isLegacySplitShadeActive()) {
             // in split shade QS don't translate, just (un)squish and overshoot
             return 0;
         }
@@ -938,8 +984,29 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         }
     }
 
+    private void updateQsSplitShadeState() {
+        if (mQs != null) {
+            mQs.setInSplitShade(mSplitShadeEnabled || isLegacySplitShadeActive());
+            updateMinHeight();
+        }
+    }
+
+    public ViewGroup getQsFrame() {
+        return mQsFrame;
+    }
+
+    public void setSwipeInProgress(boolean inProgress) {
+        mSwipeInProgress = inProgress;
+        updateQsState();
+    }
+
     void setBarState(int barState) {
         mBarState = barState;
+        updateQsSplitShadeState();
+        if (mQs != null) {
+            updateQsState();
+            updateQsFrameTranslation();
+        }
     }
 
     /** */
@@ -1043,6 +1110,30 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     void updateQsState() {
         if (mQs == null) return;
         mQs.setExpanded(getExpanded());
+
+        // Lunaris split shade: show either QS or the notifications, never both. Visibility is
+        // only touched while the split shade is in effect, plus once to restore it afterwards.
+        final boolean legacySplitShade = isLegacySplitShadeActive();
+        if (!legacySplitShade && !mLegacySplitShadeVisibilityApplied) return;
+        mLegacySplitShadeVisibilityApplied = legacySplitShade;
+        final boolean isQsVisible = isExpandImmediate() || getExpanded();
+        final int qsVisibility = !legacySplitShade || isQsVisible || mSwipeInProgress
+                ? View.VISIBLE : View.INVISIBLE;
+        final int nsslVisibility = !legacySplitShade || !isQsVisible || mSwipeInProgress
+                ? View.VISIBLE : View.INVISIBLE;
+        if (mQsFrame != null && mQsFrame.getVisibility() != qsVisibility) {
+            mQsFrame.setVisibility(qsVisibility);
+        }
+        if (mQs.getView() != null && mQs.getView().getVisibility() != qsVisibility) {
+            mQs.getView().setVisibility(qsVisibility);
+        }
+        if (mQs.getHeader() != null && mQs.getHeader().getVisibility() != qsVisibility) {
+            mQs.getHeader().setVisibility(qsVisibility);
+        }
+        final View nssl = mNotificationStackScrollLayoutController.getView();
+        if (nssl != null && nssl.getVisibility() != nsslVisibility) {
+            nssl.setVisibility(nsslVisibility);
+        }
     }
 
     /** update expanded state of QS */
@@ -1060,14 +1151,25 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                     .getNotificationSquishinessFraction();
         }
         final float qsExpansionFraction = computeExpansionFraction();
-        final float adjustedExpansionFraction = mSplitShadeEnabled
-                ? 1f : computeExpansionFraction();
+        final boolean legacySplitShade = isLegacySplitShadeActive();
+        final float adjustedExpansionFraction = mSplitShadeEnabled || legacySplitShade
+                ? 1f : qsExpansionFraction;
         mQs.setQsExpansion(
                 adjustedExpansionFraction,
                 mShadeExpandedFraction,
                 getHeaderTranslation(),
                 squishiness
         );
+        if (mQsFrame != null) {
+            if (legacySplitShade) {
+                // Lunaris split shade: QS fades in with the shade instead of expanding from QQS.
+                float speedFraction = Math.min(mShadeExpandedFraction / 0.90f, 1.0f);
+                mQsFrame.setAlpha(ShadeInterpolation.getContentAlpha(speedFraction));
+            } else {
+                mQsFrame.setAlpha(1.0f);
+            }
+        }
+        updateQsFrameTranslation();
         if (QuickStepContract.ALLOW_BACK_GESTURE_IN_SHADE
                 && mPanelViewControllerLazy.get().mAnimateBack) {
             mPanelViewControllerLazy.get().adjustBackAnimationScale(adjustedExpansionFraction);
@@ -1099,7 +1201,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                 ? getLockscreenShadeDragProgress()
                 : mShadeExpandedFraction;
         mShadeHeaderController.setShadeExpandedFraction(shadeExpandedFraction);
-        mShadeHeaderController.setQsExpandedFraction(qsExpansionFraction);
+        // Lunaris split shade: the header stays in its expanded (QS) layout.
+        mShadeHeaderController.setQsExpandedFraction(
+                isLegacySplitShadeActive() ? 1f : qsExpansionFraction);
         mShadeHeaderController.setQsVisible(mVisible);
 
         // Update the light bar
@@ -1147,6 +1251,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             // be larger than 0 because of the timing, leading to flickers.
             return 0.0f;
         }
+        if (isLegacySplitShadeActive()) {
+            return (getExpanded() || isExpandImmediate()) ? mShadeExpandedFraction : 0.0f;
+        }
         return Math.min(
                 1f, (mExpansionHeight - mMinExpansionHeight) / (mMaxExpansionHeight
                         - mMinExpansionHeight));
@@ -1154,7 +1261,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     void updateMinHeight() {
         float previousMin = mMinExpansionHeight;
-        if (mBarState == KEYGUARD || mSplitShadeEnabled) {
+        if (mBarState == KEYGUARD || mSplitShadeEnabled || isLegacySplitShadeActive()) {
             mMinExpansionHeight = 0;
         } else {
             mMinExpansionHeight = mQs.getQsMinExpansionHeight();
@@ -1165,6 +1272,16 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     }
 
     void updateQsFrameTranslation() {
+        if (mQsFrame != null) {
+            float translation = 0f;
+            if (isLegacySplitShadeActive()) {
+                // Lunaris split shade: QS slides in together with the notification stack.
+                float speedFraction = Math.min(mShadeExpandedFraction, 1.0f);
+                translation = (1.0f - speedFraction) * mNotificationStackScrollLayoutController
+                        .getView().getExpandTranslationStart();
+            }
+            mQsFrame.setTranslationY(translation);
+        }
         // TODO (b/265193930): remove dependency on NPVC
         mQsFrameTranslateController.translateQsFrame(mQsFrame, mQs,
                 mPanelViewControllerLazy.get().getNavigationBarBottomHeight()
@@ -1326,7 +1443,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                         mDisplayRightInset,
                         clipBottom,
                         radius,
-                        qsVisible && !mSplitShadeEnabled,
+                        qsVisible && !mSplitShadeEnabled && !isLegacySplitShadeActive(),
                         mIsFullWidth);
             }
 
@@ -1422,6 +1539,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         SceneContainerFlag.assertInLegacyMode();
         float topPadding;
         boolean keyguardShowing = mBarState == KEYGUARD;
+        if (isLegacySplitShadeActive()) {
+            return mQuickQsHeaderHeight + mQsPanelPaddingTop;
+        }
         if (mSplitShadeEnabled) {
             return keyguardShowing
                     ? keyguardNotificationStaticPadding : 0;
@@ -1503,7 +1623,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     private int calculateTopClippingBound(int qsPanelBottomY) {
         int top;
-        if (mSplitShadeEnabled) {
+        if (mSplitShadeEnabled || isLegacySplitShadeActive()) {
             top = Math.min(qsPanelBottomY, mLargeScreenShadeHeaderHeight);
         } else {
             if (mTransitioningToFullShadeProgress > 0.0f) {
@@ -1646,13 +1766,32 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     /** handles touches in Qs panel area */
     boolean handleTouch(MotionEvent event, boolean isFullyCollapsed,
             boolean isShadeOrQsHeightAnimationRunning) {
+        return handleTouch(event, isFullyCollapsed, isShadeOrQsHeightAnimationRunning,
+                false /* isSynthesizedDown */);
+    }
+
+    boolean handleTouch(MotionEvent event, boolean isFullyCollapsed,
+            boolean isShadeOrQsHeightAnimationRunning, boolean isSynthesizedDown) {
+        final boolean legacySplitShade = isLegacySplitShadeActive();
+        if (legacySplitShade && !isFullyCollapsed) {
+            // Lunaris split shade: once open, QS and notifications are separate panels.
+            return false;
+        }
         if (isSplitShadeAndTouchXOutsideQs(event.getX())) {
             mShadeLog.logMotionEvent(event, "handleQsTouch: touch outside QS");
             return false;
         }
-        boolean isInStatusBar = event.getY(event.getActionIndex()) < mStatusBarMinHeight;
+        float statusBarThreshold = legacySplitShade
+                ? mStatusBarMinHeight * 2.0f : mStatusBarMinHeight;
+        boolean isInStatusBar = event.getY(event.getActionIndex()) < statusBarThreshold;
         if (ShadeExpandsOnStatusBarLongPress.isEnabled() && isInStatusBar) {
             mStatusBarLongPressGestureDetector.get().handleTouch(event);
+        }
+        if (legacySplitShade) {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN && !isSynthesizedDown) {
+                prepareSplitShade(event);
+            }
+            return false;
         }
         final int action = event.getActionMasked();
         boolean collapsedQs = !getExpanded() && !mSplitShadeEnabled;
@@ -1709,6 +1848,29 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             setListening(true);
         }
         return false;
+    }
+
+    /**
+     * Lunaris split shade: decides on the first touch whether this pull-down opens QS (right
+     * half, left half in RTL) or the notifications (other half).
+     */
+    void prepareSplitShade(MotionEvent event) {
+        if (!isLegacySplitShadeActive()) {
+            return;
+        }
+        closeQs();
+        setTracking(false);
+        mConflictingExpansionGesture = false;
+        mTwoFingerExpandPossible = false;
+        boolean openQs = isExpansionEnabled() && isOpenQsEvent(event);
+        setExpandImmediate(openQs);
+        mNotificationStackScrollLayoutController.setShouldShowShelfOnly(openQs);
+        if (openQs) {
+            setListening(true);
+        }
+        updateQsSplitShadeState();
+        updateExpansion();
+        updateQsState();
     }
 
     private void handleDown(MotionEvent event) {
@@ -1812,6 +1974,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     /** intercepts touches on Qs panel area. */
     boolean onIntercept(MotionEvent event) {
+        if (isLegacySplitShadeActive()) {
+            return false;
+        }
         int pointerIndex = event.findPointerIndex(mTrackingPointer);
         if (pointerIndex < 0) {
             pointerIndex = 0;
@@ -2215,7 +2380,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     }
 
     /** */
-    public final class QsFragmentListener implements FragmentHostManager.FragmentListener {
+    public final class QsFragmentListener implements FragmentHostManager.FragmentListener,
+            TunerService.Tunable {
 
         private int mLastDisplayIdWithMediaVisibilityChange = Display.DEFAULT_DISPLAY;
 
@@ -2227,7 +2393,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             mQs.setCollapseExpandAction(mQsCollapseExpandAction);
             mQs.setHeaderClickable(isExpansionEnabled());
             mQs.setOverscrolling(mStackScrollerOverscrolling);
-            mQs.setInSplitShade(mSplitShadeEnabled);
+            updateQsSplitShadeState();
             mQs.setIsNotificationPanelFullWidth(mIsFullWidth);
             if (QSComposeFragment.isEnabled()) {
                 mQs.setQqsHeightListener(mQqsHeightListener);
@@ -2280,6 +2446,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                 mNotificationStackScrollLayoutController.setQsHeader((ViewGroup) mQs.getHeader());
             }
             mQs.setScrollListener(mQsScrollListener);
+            mTunerService.addTunable(this, QS_SPLIT_SHADE_SETTING);
             updateExpansion();
         }
 
@@ -2290,6 +2457,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         /** */
         @Override
         public void onFragmentViewDestroyed(String tag, Fragment fragment) {
+            mTunerService.removeTunable(this);
             // Manual handling of fragment lifecycle is only required because this bridges
             // non-fragment and fragment code. Once we are using a fragment for the notification
             // panel, mQs will not need to be null cause it will be tied to the same lifecycle.
@@ -2301,6 +2469,20 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                     mNotificationStackScrollLayoutController.setQsHeader(null);
                 }
                 mQs = null;
+            }
+        }
+
+        @Override
+        public void onTuningChanged(String key, String newValue) {
+            if (QS_SPLIT_SHADE_SETTING.equals(key)) {
+                boolean enabled = TunerService.parseInteger(newValue, 0) != 0;
+                if (mQsSplitShadeEnabledLegacy != enabled) {
+                    mPanelViewControllerLazy.get().cancelHeightAnimator();
+                }
+                mQsSplitShadeEnabledLegacy = enabled;
+                updateQsSplitShadeState();
+                updateQsState();
+                updateQsFrameTranslation();
             }
         }
     }
@@ -2375,7 +2557,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         @Override
         public void onOverscrollTopChanged(float amount, boolean isRubberbanded) {
             // When in split shade, overscroll shouldn't carry through to QS
-            if (mSplitShadeEnabled) {
+            if (mSplitShadeEnabled || isLegacySplitShadeActive()) {
                 return;
             }
             cancelExpansionAnimation();
@@ -2393,7 +2575,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         @Override
         public void flingTopOverscroll(float velocity, boolean open) {
             // in split shade mode we want to expand/collapse QS only when touch happens within QS
-            if (isSplitShadeAndTouchXOutsideQs(mInitialTouchX)) {
+            if (isSplitShadeAndTouchXOutsideQs(mInitialTouchX) || isLegacySplitShadeActive()) {
                 return;
             }
             mLastOverscroll = 0f;

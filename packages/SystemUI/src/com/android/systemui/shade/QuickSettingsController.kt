@@ -23,6 +23,9 @@ interface QuickSettingsController {
     /** Returns whether or not QuickSettings is being customized. */
     val isCustomizing: Boolean
 
+    /** Returns whether the Lunaris split shade (notifications left, QS right) is in use. */
+    val splitShadeEnabledLegacy: Boolean
+
     /** Returns Whether we should intercept a gesture to open Quick Settings. */
     @Deprecated("specific to legacy touch handling")
     fun shouldQuickSettingsIntercept(x: Float, y: Float, yDiff: Float): Boolean

@@ -6863,6 +6863,14 @@ public final class Settings {
                 "lockscreen_show_custom_carrier_text";
 
         /**
+         * Whether to split the notification shade (swipe left for notifications, right for QS)
+         * From Lunaris AOSP.
+         * @hide
+         */
+        @Readable
+        public static final String QS_SPLIT_SHADE = "qs_split_shade";
+
+        /**
          * Whether to use the AOSP split notification shade (QS and notifications side by side)
          * in landscape. 1 = allowed (default), 0 = never.
          * From Lunaris AOSP.

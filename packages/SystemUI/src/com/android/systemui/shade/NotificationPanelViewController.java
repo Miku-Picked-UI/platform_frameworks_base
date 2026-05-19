@@ -1163,10 +1163,10 @@ public final class NotificationPanelViewController implements
             updateClockAppearance();
         }
         if (!onKeyguard) {
-            if (mSplitShadeEnabled) {
+            if (mSplitShadeEnabled || isLegacySplitShadeActive()) {
                 // Quick settings are not on the top of the notifications
-                // when in split shade mode (they are on the left side),
-                // so we should not add a padding for them
+                // when in split shade mode (they are on the left side, or in their own
+                // panel with the Lunaris split shade), so we should not add a padding for them
                 stackScrollerPadding = 0;
             } else {
                 stackScrollerPadding = mQsController.getHeaderHeight();
@@ -1626,6 +1626,33 @@ public final class NotificationPanelViewController implements
         return mIsGestureNavigation && y > mView.getHeight() - mNavigationBarBottomHeight;
     }
 
+    /** Lunaris split shade: the launcher swipe decides between notifications and QS. */
+    @Override
+    public void startInputFocusTransfer(MotionEvent event) {
+        if (mCommandQueue.panelsEnabled() && isFullyCollapsed()) {
+            mQsController.prepareSplitShade(event);
+        }
+        startInputFocusTransfer();
+    }
+
+    /** Whether the Lunaris split shade (notifications left, QS right) is in effect. */
+    private boolean isLegacySplitShadeActive() {
+        return mQsController.getSplitShadeEnabledLegacy() && mBarState == StatusBarState.SHADE;
+    }
+
+    /**
+     * Lunaris split shade: while QS is open, a drag starting in the upper half belongs to QS
+     * (sliders, scrolling) instead of collapsing the shade.
+     */
+    private boolean isLegacySplitShadeQsDrag() {
+        return isLegacySplitShadeActive()
+                && mQsController.isExpandImmediate()
+                && isFullyExpanded()
+                && !isTracking()
+                && mView != null
+                && mDownY < mView.getHeight() / 2f;
+    }
+
     @Override
     public void startInputFocusTransfer() {
         if (!mCommandQueue.panelsEnabled()) {
@@ -1917,6 +1944,9 @@ public final class NotificationPanelViewController implements
             float qsExpansionFraction;
             if (mSplitShadeEnabled) {
                 qsExpansionFraction = 1;
+            } else if (isLegacySplitShadeActive()) {
+                qsExpansionFraction = (mQsController.isExpandImmediate()
+                        || mQsController.getExpanded()) ? getExpandedFraction() : 0;
             } else if (isKeyguardShowing()) {
                 // On Keyguard, interpolate the QS expansion linearly to the panel expansion
                 qsExpansionFraction = expandedHeight / (getMaxPanelHeight());
@@ -3978,6 +4008,9 @@ public final class NotificationPanelViewController implements
                     }
                     break;
                 case MotionEvent.ACTION_MOVE:
+                    if (isLegacySplitShadeQsDrag()) {
+                        break;
+                    }
                     final float h = y - mInitialExpandY;
                     addMovement(event);
                     final boolean openShadeWithoutHun =
@@ -4109,7 +4142,8 @@ public final class NotificationPanelViewController implements
                 return false;
             }
             if (!mHeadsUpTouchHelper.isTrackingHeadsUp() && mQsController.handleTouch(
-                    event, isFullyCollapsed(), isShadeOrQsHeightAnimationRunning())) {
+                    event, isFullyCollapsed(), isShadeOrQsHeightAnimationRunning(),
+                    mLastEventSynthesizedDown)) {
                 if (event.getActionMasked() != MotionEvent.ACTION_MOVE) {
                     mShadeLog.logMotionEvent(event, "onTouch: handleQsTouch handled event");
                 }
@@ -4253,6 +4287,9 @@ public final class NotificationPanelViewController implements
                     }
                     break;
                 case MotionEvent.ACTION_MOVE:
+                    if (isLegacySplitShadeQsDrag()) {
+                        break;
+                    }
                     // If the shade is half-collapsed, a horizontal swipe inwards from L/R edge
                     // must be routed to the back gesture (which shows a preview animation).
                     if (QuickStepContract.ALLOW_BACK_GESTURE_IN_SHADE && mAnimateBack

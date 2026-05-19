@@ -2081,7 +2081,8 @@ public class NotificationStackScrollLayout
      * @return The translation at the beginning when expanding.
      * Measured relative to the resting position.
      */
-    private float getExpandTranslationStart() {
+    /** Also used by the Lunaris split shade to slide QS in together with the stack. */
+    public float getExpandTranslationStart() {
         SceneContainerFlag.assertInLegacyMode();
         return -getTopPadding() + getMinExpansionHeight() - mShelf.getIntrinsicHeight();
     }
