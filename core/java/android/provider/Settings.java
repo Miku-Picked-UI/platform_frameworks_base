@@ -6862,6 +6862,14 @@ public final class Settings {
         public static final String LOCKSCREEN_SHOW_CUSTOM_CARRIER_TEXT =
                 "lockscreen_show_custom_carrier_text";
 
+        /**
+         * Whether to use the AOSP split notification shade (QS and notifications side by side)
+         * in landscape. 1 = allowed (default), 0 = never.
+         * From Lunaris AOSP.
+         * @hide
+         */
+        public static final String QS_SPLIT_NOTIFICATION = "qs_split_notification";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
