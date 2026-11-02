@@ -212,15 +212,39 @@ public class TunerServiceImpl extends TunerService {
             mTunables.add(tunable);
             mLeakDetector.trackCollection(mTunables, "TunerService.mTunables");
         }
-        Uri uri = Settings.Secure.getUriFor(key);
+        Uri uri = getUriForKey(key);
         if (!mListeningUris.containsKey(uri)) {
             mListeningUris.put(uri, key);
             mContentResolver.registerContentObserver(uri, false, mObserver, mCurrentUser);
         }
         // Send the first state.
-        String value = DejankUtils.whitelistIpcs(() -> Settings.Secure
-                .getStringForUser(mContentResolver, key, mCurrentUser));
+        String value = DejankUtils.whitelistIpcs(() -> getValueForKey(key));
         tunable.onTuningChanged(key, value);
+    }
+
+    // Miku-Picked UI: keys may be prefixed with "system:" or "secure:" to pick the
+    // settings table (as on LineageOS-based ROMs). Unprefixed keys stay in Secure.
+    private static final String PREFIX_SYSTEM = "system:";
+    private static final String PREFIX_SECURE = "secure:";
+
+    private Uri getUriForKey(String key) {
+        if (key.startsWith(PREFIX_SYSTEM)) {
+            return Settings.System.getUriFor(key.substring(PREFIX_SYSTEM.length()));
+        } else if (key.startsWith(PREFIX_SECURE)) {
+            return Settings.Secure.getUriFor(key.substring(PREFIX_SECURE.length()));
+        }
+        return Settings.Secure.getUriFor(key);
+    }
+
+    private String getValueForKey(String key) {
+        if (key.startsWith(PREFIX_SYSTEM)) {
+            return Settings.System.getStringForUser(mContentResolver,
+                    key.substring(PREFIX_SYSTEM.length()), mCurrentUser);
+        } else if (key.startsWith(PREFIX_SECURE)) {
+            return Settings.Secure.getStringForUser(mContentResolver,
+                    key.substring(PREFIX_SECURE.length()), mCurrentUser);
+        }
+        return Settings.Secure.getStringForUser(mContentResolver, key, mCurrentUser);
     }
 
     @Override
@@ -249,7 +273,7 @@ public class TunerServiceImpl extends TunerService {
         if (tunables == null) {
             return;
         }
-        String value = Settings.Secure.getStringForUser(mContentResolver, key, mCurrentUser);
+        String value = getValueForKey(key);
         for (Tunable tunable : tunables) {
             tunable.onTuningChanged(key, value);
         }
@@ -257,8 +281,7 @@ public class TunerServiceImpl extends TunerService {
 
     private void reloadAll() {
         for (String key : mTunableLookup.keySet()) {
-            String value = Settings.Secure.getStringForUser(mContentResolver, key,
-                    mCurrentUser);
+            String value = getValueForKey(key);
             for (Tunable tunable : mTunableLookup.get(key)) {
                 tunable.onTuningChanged(key, value);
             }
