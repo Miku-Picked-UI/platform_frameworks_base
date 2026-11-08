@@ -515,6 +515,8 @@ android_library {
     ],
     defaults: ["SystemUI-srcs-defaults"],
     static_libs: [
+        // [OneUisland] Dynamic island, see vendor/miku/oneuisland
+        "OneUisland-island",
         "//frameworks/libs/systemui:compilelib",
         "com.android.systemui.pods-api-aosp-handheld",
         "SystemUI-res",

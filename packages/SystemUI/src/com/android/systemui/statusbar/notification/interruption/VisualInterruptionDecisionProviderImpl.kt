@@ -27,6 +27,7 @@ import com.android.internal.annotations.VisibleForTesting
 import com.android.internal.logging.UiEventLogger
 import com.android.internal.logging.UiEventLogger.UiEventEnum
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.picked.oneuisland.OneUislandHost
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.shade.ShadeDisplayAware
@@ -233,24 +234,37 @@ constructor(
         traceSection("VisualInterruptionDecisionProviderImpl#makeUnloggedHeadsUpDecision") {
             check(started)
 
-            return if (statusBarStateController.isDozing) {
+            return (if (statusBarStateController.isDozing) {
                     makeLoggablePulseDecision(entry)
                 } else {
                     makeLoggablePeekDecision(entry)
-                }
+                })
                 .decision
+                .let { offerToDynamicIsland(entry, it) }
         }
 
     override fun makeAndLogHeadsUpDecision(entry: NotificationEntry): Decision =
         traceSection("VisualInterruptionDecisionProviderImpl#makeAndLogHeadsUpDecision") {
             check(started)
 
-            return if (statusBarStateController.isDozing) {
+            return (if (statusBarStateController.isDozing) {
                     makeLoggablePulseDecision(entry).also { logDecision(PULSE, entry, it) }
                 } else {
                     makeLoggablePeekDecision(entry).also { logDecision(PEEK, entry, it) }
-                }
+                })
                 .decision
+                .let { offerToDynamicIsland(entry, it) }
+        }
+
+    /**
+     * [OneUisland] A notification that would pop up as a heads-up is offered to the dynamic
+     * island first; if the island shows it, there is no heads-up.
+     */
+    private fun offerToDynamicIsland(entry: NotificationEntry, decision: Decision): Decision =
+        if (decision.shouldInterrupt && OneUislandHost.offerHeadsUp(entry.sbn)) {
+            DecisionImpl(shouldInterrupt = false, logReason = "shown in dynamic island")
+        } else {
+            decision
         }
 
     private fun makeLoggablePeekDecision(entry: NotificationEntry): LoggableDecision =

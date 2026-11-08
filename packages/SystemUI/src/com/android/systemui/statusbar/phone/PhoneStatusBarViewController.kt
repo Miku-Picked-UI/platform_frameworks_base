@@ -27,6 +27,7 @@ import androidx.annotation.VisibleForTesting
 import com.android.systemui.Gefingerpoken
 import com.android.systemui.battery.BatteryMeterView
 import com.android.systemui.display.dagger.SystemUIDisplaySubcomponent.DisplayAware
+import com.android.systemui.picked.oneuisland.OneUislandHost
 import com.android.systemui.plugins.DarkIconDispatcher
 import com.android.systemui.res.R
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
@@ -174,6 +175,9 @@ private constructor(
 
         addDarkReceivers()
 
+        // [OneUisland] Dynamic island
+        OneUislandHost.onStatusBarViewAttached(mView)
+
         if (
             StatusBarConnectedDisplays.isEnabled && mView.context.getDisplayId() != DEFAULT_DISPLAY
         ) {
@@ -251,6 +255,8 @@ private constructor(
     @VisibleForTesting
     public override fun onViewDetached() {
         removeDarkReceivers()
+        // [OneUisland] Dynamic island
+        OneUislandHost.onStatusBarViewDetached(mView)
         startSideContainer.setOnHoverListener(null)
         endSideContainer.setOnHoverListener(null)
         progressProvider?.setReadyToHandleTransition(false)

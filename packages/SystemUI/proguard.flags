@@ -5,3 +5,13 @@
 }
 
 -keep,allowoptimization,allowaccessmodification class com.android.systemui.dagger.DaggerReferenceGlobalRootComponent** { !synthetic *; }
+
+# [OneUisland] The dynamic island (vendor/miku/oneuisland) reads these SystemUI internals by
+# reflection, and uses reflection and proxies itself; keep their names and members.
+-keep class dev.flexy.dynamicisland.** { *; }
+-keepclassmembers class com.android.systemui.statusbar.notification.collection.NotifCollection { *; }
+-keepclassmembers class com.android.systemui.statusbar.notification.collection.NotificationEntry { *; }
+-keepclassmembers class com.android.systemui.statusbar.phone.ongoingcall.** { *; }
+-keepclassmembers class com.android.systemui.statusbar.notification.promoted.** { *; }
+-keep class com.android.systemui.shared.system.TaskStackChangeListener { *; }
+-keepclassmembers class com.android.systemui.shared.system.TaskStackChangeListeners { *; }

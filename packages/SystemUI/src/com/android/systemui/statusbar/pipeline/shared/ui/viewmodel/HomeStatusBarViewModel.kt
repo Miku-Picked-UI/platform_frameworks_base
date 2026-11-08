@@ -44,6 +44,7 @@ import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
 import com.android.systemui.log.table.TableLogBufferFactory
 import com.android.systemui.log.table.logDiffsForTable
+import com.android.systemui.picked.oneuisland.OneUislandHost
 import com.android.systemui.plugins.DarkIconDispatcher
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
@@ -602,7 +603,8 @@ constructor(
     private val chipsVisibilityModel: StateFlow<ChipsVisibilityModel> =
         combine(ongoingActivityChipsViewModel.chips, canShowOngoingActivityChips) { chips, canShow
                 ->
-                ChipsVisibilityModel(chips, areChipsAllowed = canShow)
+                // [OneUisland] The dynamic island replaces the chips while it runs.
+                OneUislandHost.adjustChips(ChipsVisibilityModel(chips, areChipsAllowed = canShow))
             }
             .traceEach(trackGroup(TRACK_GROUP, "chips"), logcat = true) {
                 "Chips[allowed=${it.areChipsAllowed} numChips=${it.chips.active.size}]"

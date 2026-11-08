@@ -5,6 +5,8 @@
 
 package com.android.systemui.picked
 
+import com.android.systemui.CoreStartable
+import com.android.systemui.picked.oneuisland.OneUislandHost
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
@@ -17,12 +19,13 @@ import com.android.systemui.res.R
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
+import dagger.multibindings.ClassKey
 import dagger.multibindings.IntoMap
 import dagger.multibindings.StringKey
 
 /**
- * Dagger bindings for features picked from Infinity X, AxionOS, uwuAOSP and Evolution X
- * that do not belong to an existing SystemUI module.
+ * Dagger bindings for features picked from Infinity X, AxionOS, uwuAOSP, Evolution X and
+ * OneUisland that do not belong to an existing SystemUI module.
  */
 @Module
 interface PickedModule {
@@ -38,6 +41,12 @@ interface PickedModule {
     @IntoMap
     @StringKey(SleepModeTile.TILE_SPEC)
     fun bindSleepModeTile(sleepModeTile: SleepModeTile): QSTileImpl<*>
+
+    /** [OneUisland] Dynamic island */
+    @Binds
+    @IntoMap
+    @ClassKey(OneUislandHost::class)
+    fun bindOneUislandHost(host: OneUislandHost): CoreStartable
 
     companion object {
         /** [uwuAOSP] Auto brightness tile config */

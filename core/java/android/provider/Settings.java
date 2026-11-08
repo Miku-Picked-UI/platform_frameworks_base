@@ -6885,6 +6885,13 @@ public final class Settings {
          */
         public static final String HIDE_STATUS_BAR_IN_SCREENSHOT = "hide_status_bar_in_screenshot";
 
+        /**
+         * Whether the OneUisland dynamic island is shown (1, default) or not (0).
+         * Read when SystemUI starts.
+         * @hide
+         */
+        public static final String ONEUISLAND_ENABLED = "oneuisland_enabled";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
