@@ -240,6 +240,7 @@ import com.android.server.policy.PhoneWindowManager;
 import com.android.server.policy.role.RoleServicePlatformHelperImpl;
 import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
+import com.android.server.power.SleepModeService;
 import com.android.server.power.hint.HintManagerService;
 import com.android.server.power.thermal.ThermalManagerService;
 import com.android.server.powerstats.PowerStatsService;
@@ -340,10 +341,6 @@ import java.util.concurrent.Future;
  * Entry point to {@code system_server}.
  */
 public final class SystemServer implements Dumpable {
-
-    // Miku-Picked UI: Sleep Mode (Evolution X)
-    private static final String SLEEP_MODE_SERVICE_CLASS =
-            "com.android.server.power.SleepModeService";
 
     private static final String TAG = "SystemServer";
 
@@ -2544,7 +2541,7 @@ public final class SystemServer implements Dumpable {
 
                 // Miku-Picked UI: Sleep Mode (Evolution X), needs TwilightService
                 t.traceBegin("StartSleepModeService");
-                mSystemServiceManager.startService(SLEEP_MODE_SERVICE_CLASS);
+                mSystemServiceManager.startService(SleepModeService.class);
                 t.traceEnd();
             }
 
