@@ -22,6 +22,7 @@ import com.android.systemui.statusbar.CommandQueue
 import com.android.systemui.statusbar.SysuiStatusBarStateController
 import com.android.systemui.statusbar.chips.ui.model.OngoingActivityChipModel
 import com.android.systemui.statusbar.notification.collection.NotifCollection
+import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifCollectionListener
 import com.android.systemui.statusbar.notification.headsup.HeadsUpManager
@@ -64,6 +65,7 @@ constructor(
     private val headsUpManager: HeadsUpManager,
     private val commandQueue: CommandQueue,
     private val notifCollection: NotifCollection,
+    private val notifPipeline: NotifPipeline,
     private val ongoingCallController: Lazy<OngoingCallController>,
 ) : CoreStartable {
 
@@ -160,9 +162,10 @@ constructor(
             }
         )
 
-        // Notifications: live activities and calls come from the notification collection.
+        // Notifications: live activities and calls come from the notification collection (the
+        // island reads it directly); its changes arrive through the public NotifPipeline.
         c.setNotifCollection(notifCollection)
-        notifCollection.addCollectionListener(
+        notifPipeline.addCollectionListener(
             object : NotifCollectionListener {
                 override fun onEntryAdded(entry: NotificationEntry) = refresh()
 
