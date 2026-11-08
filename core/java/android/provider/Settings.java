@@ -6892,6 +6892,14 @@ public final class Settings {
          */
         public static final String ONEUISLAND_ENABLED = "oneuisland_enabled";
 
+        /**
+         * Fingerprint icon for under-display sensors: index into the "udfps_icons" array of
+         * the UdfpsIcons package (0 = default). From Evolution X.
+         * @hide
+         */
+        @Readable
+        public static final String UDFPS_ICON = "udfps_icon";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
