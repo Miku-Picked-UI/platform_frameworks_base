@@ -78,6 +78,13 @@ constructor(
 
     private val packageInstalled = com.android.systemui.biometrics.UdfpsIconsPackage.isInstalled(context)
 
+    /**
+     * Miku-Picked UI: whether the (non-AOD) fingerprint state shows a custom UDFPS icon.
+     * The binder uses it to draw that icon at the full sensor size (no icon padding).
+     */
+    var customFingerprintIconInUse = false
+        private set
+
     init {
         setupIconStates()
         setupIconTransitions()
@@ -143,6 +150,7 @@ constructor(
         val customUdfpsIcon = packageInstalled && (Settings.System.getIntForUser(
             mContext.contentResolver, Settings.System.UDFPS_ICON, 0, UserHandle.USER_CURRENT
         ) != 0)
+        customFingerprintIconInUse = customUdfpsIcon
 
         // Lockscreen States
         // LOCK

@@ -31,7 +31,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.Dependency
 import com.android.systemui.Flags
-import com.android.systemui.biometrics.UdfpsIconDrawable
 import com.android.systemui.common.ui.view.TouchHandlingView
 import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
 import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryBackgroundViewModel
@@ -271,7 +270,15 @@ object DeviceEntryIconViewBinder {
                             }
                             fgIconView.imageTintList =
                                 ColorStateList.valueOf(overrideColor?.toArgb() ?: viewModel.tint)
-                            if (fgIconView.drawable.current !is UdfpsIconDrawable) {
+                            // Miku-Picked UI: decide from the state being set, not from
+                            // drawable.current, which is still the previous state's drawable
+                            // here (the image state is set last). Otherwise the custom icon
+                            // keeps the lock icon's padding and is drawn smaller than the sensor.
+                            val showsCustomIcon =
+                                view.customFingerprintIconInUse &&
+                                    viewModel.type == DeviceEntryIconView.IconType.FINGERPRINT &&
+                                    !viewModel.useAodVariant
+                            if (!showsCustomIcon) {
                                 fgIconView.setPadding(
                                     viewModel.padding,
                                     viewModel.padding,
