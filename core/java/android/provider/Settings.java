@@ -14072,6 +14072,55 @@ public final class Settings {
          */
         public static final String VOLUME_DIALOG_HAPTIC_FEEDBACK = "volume_dialog_haptic_feedback";
 
+        /**
+         * Custom lockscreen clock style (0 = AOSP clock). From Evolution X.
+         * @hide
+         */
+        @Readable
+        public static final String LOCK_SCREEN_CUSTOM_CLOCK_STYLE = "lock_screen_custom_clock_style";
+
+        /**
+         * Custom lockscreen clock color: default, accent or custom. From Evolution X.
+         * @hide
+         */
+        @Readable
+        public static final String LOCK_SCREEN_CUSTOM_CLOCK_COLOR_MODE = "lock_screen_custom_clock_color_mode";
+
+        /**
+         * Custom lockscreen clock color used in custom color mode. From Evolution X.
+         * @hide
+         */
+        @Readable
+        public static final String LOCK_SCREEN_CUSTOM_CLOCK_CUSTOM_COLOR = "lock_screen_custom_clock_custom_color";
+
+        /**
+         * Custom lockscreen clock opacity in percent. From Evolution X.
+         * @hide
+         */
+        @Readable
+        public static final String LOCK_SCREEN_CUSTOM_CLOCK_OPACITY = "lock_screen_custom_clock_opacity";
+
+        /**
+         * Custom lockscreen clock top margin. From Evolution X.
+         * @hide
+         */
+        @Readable
+        public static final String LOCK_SCREEN_CUSTOM_CLOCK_MARGIN_TOP = "lock_screen_custom_clock_margin_top";
+
+        /**
+         * Custom lockscreen clock size in percent (50-150). From Evolution X.
+         * @hide
+         */
+        @Readable
+        public static final String LOCK_SCREEN_CUSTOM_CLOCK_SIZE = "lock_screen_custom_clock_size_scale";
+
+        /**
+         * Animate the custom lockscreen clock when entering and leaving AOD. From Evolution X.
+         * @hide
+         */
+        @Readable
+        public static final String LOCK_SCREEN_CUSTOM_CLOCK_AOD_ANIM = "lock_screen_custom_clock_aod_anim";
+
         // ---- end Miku-Picked UI (Secure) ----
         
         /**

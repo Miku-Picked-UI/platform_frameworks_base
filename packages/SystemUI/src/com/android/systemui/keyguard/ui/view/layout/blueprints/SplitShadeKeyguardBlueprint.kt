@@ -35,6 +35,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeGuidelines
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeMediaSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeNotificationStackScrollLayoutSection
+import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardClockStyleSection
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.util.kotlin.getOrNull
 import java.util.Optional
@@ -66,6 +67,7 @@ constructor(
     clockSection: ClockSection,
     smartspaceSection: SmartspaceSection,
     mediaSection: SplitShadeMediaSection,
+    keyguardClockStyleSection: KeyguardClockStyleSection,
 ) : KeyguardBlueprint {
     override val id: String = ID
 
@@ -86,6 +88,7 @@ constructor(
             aodBurnInSection,
             clockSection,
             mediaSection,
+            keyguardClockStyleSection, // Miku-Picked UI: custom clocks (Evolution X)
             defaultDeviceEntrySection, // Add LAST: Intentionally has z-order above other views.
         )
     }

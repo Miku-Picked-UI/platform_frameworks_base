@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Miku-Picked UI
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <!-- [Evolution X] Custom lockscreen clocks: view tags -->
+    <item type="id" name="original_text_color" />
+    <item type="id" name="original_typeface" />
+</resources>
