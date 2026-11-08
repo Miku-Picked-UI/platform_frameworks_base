@@ -97,6 +97,7 @@ constructor(
             SensorActivityModel.Active.Sensors.CAMERA_AND_MICROPHONE ->
                 listOf(CAMERA_DRAWABLE, MICROPHONE_DRAWABLE)
         }.map {
+            // TODO(b/414566470): Add content description for accessibility.
             ChipIcon(Icon.Resource(resId = it, contentDescription = null))
         }
 

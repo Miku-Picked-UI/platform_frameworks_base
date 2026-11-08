@@ -16,26 +16,23 @@
 
 package com.android.systemui.statusbar.featurepods.media.ui.viewmodel
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import com.android.systemui.common.shared.model.ContentDescription
 import com.android.systemui.common.shared.model.Icon
+import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
-import com.android.systemui.media.controls.shared.MediaSeekBarStyle
-import com.android.systemui.media.dialog.MediaOutputDialogManager
 import com.android.systemui.statusbar.featurepods.media.domain.interactor.MediaControlChipInteractor
 import com.android.systemui.statusbar.featurepods.media.shared.model.MediaControlChipModel
 import com.android.systemui.statusbar.featurepods.popups.ui.model.ChipIcon
-import com.android.systemui.statusbar.featurepods.popups.ui.model.ColorsModel
 import com.android.systemui.statusbar.featurepods.popups.ui.model.HoverBehavior
 import com.android.systemui.statusbar.featurepods.popups.ui.model.PopupChipId
 import com.android.systemui.statusbar.featurepods.popups.ui.model.PopupChipModel
-import com.android.systemui.statusbar.featurepods.popups.ui.model.PopupContentModel
 import com.android.systemui.statusbar.featurepods.popups.ui.viewmodel.StatusBarPopupChipViewModel
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
-import java.util.Locale
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 /**
  * [StatusBarPopupChipViewModel] for a media control chip in the status bar. This view model is
@@ -45,8 +42,8 @@ import kotlinx.coroutines.flow.combine
 class MediaControlChipViewModel
 @AssistedInject
 constructor(
+    @Application private val applicationContext: Context,
     mediaControlChipInteractor: MediaControlChipInteractor,
-    private val mediaOutputDialogManager: MediaOutputDialogManager,
 ) : StatusBarPopupChipViewModel, ExclusiveActivatable() {
     private val hydrator: Hydrator = Hydrator("MediaControlChipViewModel.hydrator")
     /**
@@ -58,12 +55,8 @@ constructor(
             traceName = "chip",
             initialValue = PopupChipModel.Hidden(PopupChipId.MediaControl),
             source =
-                combine(
-                    mediaControlChipInteractor.mediaControlChipModel,
-                    mediaControlChipInteractor.mediaSeekBarStyle,
-                    mediaControlChipInteractor.useRedesignedMedia,
-                ) { model, seekBarStyle, useRedesignedMedia ->
-                    toPopupChipModel(model, seekBarStyle, useRedesignedMedia)
+                mediaControlChipInteractor.mediaControlChipModel.map { model ->
+                    toPopupChipModel(model)
                 },
         )
 
@@ -71,47 +64,31 @@ constructor(
         hydrator.activate()
     }
 
-    private fun toPopupChipModel(
-        model: MediaControlChipModel?,
-        seekBarStyle: MediaSeekBarStyle,
-        useRedesignedMedia: Boolean,
-    ): PopupChipModel {
+    private fun toPopupChipModel(model: MediaControlChipModel?): PopupChipModel {
         if (model == null || model.songName.isNullOrEmpty()) {
             return PopupChipModel.Hidden(PopupChipId.MediaControl)
         }
 
         val contentDescription = model.appName?.let { ContentDescription.Loaded(description = it) }
+
         val defaultIcon =
-            model.artworkIcon
-                ?: model.appIcon
-                ?: Icon.Resource(
-                    resId = com.android.internal.R.drawable.ic_audio_media,
-                    contentDescription = contentDescription,
-                )
+            when (model) {
+                is MediaControlChipModel.Legacy -> {
+                    model.appIcon?.loadDrawable(applicationContext)?.let {
+                        Icon.Loaded(drawable = it, contentDescription = contentDescription)
+                    }
+                        ?: Icon.Resource(
+                            resId = com.android.internal.R.drawable.ic_audio_media,
+                            contentDescription = contentDescription,
+                        )
+                }
+                is MediaControlChipModel.Compose -> model.appIcon
+            }
         return PopupChipModel.Shown(
             chipId = PopupChipId.MediaControl,
             icons = listOf(ChipIcon(icon = defaultIcon)),
-            chipText = normalizeSongTitle(model.songName.toString(), model.artistName?.toString()),
-            colors = ColorsModel.DynamicIsland,
+            chipText = model.songName.toString(),
             hoverBehavior = createHoverBehavior(model),
-            popupContent =
-                PopupContentModel.Media(
-                    model.copy(
-                        openOutput =
-                            model.packageName?.let { packageName ->
-                                {
-                                    mediaOutputDialogManager.createAndShow(
-                                        packageName = packageName,
-                                        aboveStatusBar = true,
-                                        userHandle =
-                                            model.sourceUserId?.let { android.os.UserHandle.of(it) },
-                                    )
-                                }
-                            }
-                    ),
-                    seekBarStyle,
-                    useRedesignedMedia,
-                ),
         )
     }
 
@@ -138,30 +115,5 @@ constructor(
     @AssistedFactory
     interface Factory {
         fun create(): MediaControlChipViewModel
-    }
-
-    private fun normalizeSongTitle(title: String, artist: String?): String {
-        if (title.isBlank()) return title
-        val separatorRegex = Regex("\\s*[-–—|•]\\s*")
-        val parts = title.split(separatorRegex, limit = 2)
-        if (parts.size != 2) return title
-
-        val left = parts[0].trim()
-        val right = parts[1].trim()
-        if (left.isBlank() || right.isBlank()) return title
-
-        val artistKey = artist?.toComparableKey() ?: return title
-        val leftKey = left.toComparableKey()
-        val rightKey = right.toComparableKey()
-
-        return when {
-            leftKey.contains(artistKey) -> right
-            rightKey.contains(artistKey) -> left
-            else -> title
-        }
-    }
-
-    private fun String.toComparableKey(): String {
-        return lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), " ").trim()
     }
 }

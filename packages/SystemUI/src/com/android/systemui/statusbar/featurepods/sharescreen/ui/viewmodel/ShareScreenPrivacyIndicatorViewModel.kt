@@ -50,6 +50,7 @@ constructor(shareScreenPrivacyIndicatorInteractor: ShareScreenPrivacyIndicatorIn
                 chipId = PopupChipId.ShareScreenPrivacyIndicator,
                 icons = listOf(ChipIcon(Icon.Resource(R.drawable.ic_share_screen, null))),
                 chipText = null,
+                // TODO(b/444293568) Finalize and update the colors of this chip.
                 colors = ColorsModel.AvControlsTheme,
             )
         } else {

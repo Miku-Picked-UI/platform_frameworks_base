@@ -190,15 +190,6 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- [Lunaris AOSP] Centered container hosting the Lunaris Bar (dynamic island) -->
-    <com.android.systemui.statusbar.AlphaOptimizedFrameLayout
-        android:id="@+id/centered_area"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:paddingTop="@dimen/status_bar_padding_top"
-        android:clipChildren="false"
-        android:clipToPadding="false" />
-
     <!-- [Infinity X] Battery bar -->
     <com.android.systemui.infinity.batterybar.BatteryBarController
         android:id="@+id/battery_bar"

@@ -62,8 +62,9 @@ import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipsVie
 import com.android.systemui.statusbar.chips.uievents.StatusBarChipsUiEventLogger
 import com.android.systemui.statusbar.events.domain.interactor.SystemStatusEventAnimationInteractor
 import com.android.systemui.statusbar.events.shared.model.SystemEventAnimationState.Idle
+import com.android.systemui.statusbar.featurepods.popups.StatusBarPopupChips
 import com.android.systemui.statusbar.featurepods.popups.ui.model.PopupChipModel
-import com.android.systemui.statusbar.featurepods.popups.ui.viewmodel.StatusBarPopupChipsViewModelStore
+import com.android.systemui.statusbar.featurepods.popups.ui.viewmodel.StatusBarPopupChipsViewModel
 import com.android.systemui.statusbar.headsup.shared.StatusBarNoHunBehavior
 import com.android.systemui.statusbar.layout.ui.viewmodel.AppHandlesViewModel
 import com.android.systemui.statusbar.layout.ui.viewmodel.StatusBarBoundsViewModel
@@ -187,10 +188,6 @@ interface HomeStatusBarViewModel : Activatable {
     /** The popup chips that should be shown on the right-hand side of the status bar. */
     val popupChips: List<PopupChipModel.Shown>
 
-    /** Lunaris Bar: chip used for the media app open/close transition, if any. */
-    val mediaTransitionChip: PopupChipModel.Shown?
-        get() = null
-
     /**
      * True if the status bar should be visible.
      *
@@ -277,7 +274,7 @@ constructor(
     private val shadeInteractor: ShadeInteractor,
     shareToAppChipViewModel: ShareToAppChipViewModel,
     @DisplayAware private val ongoingActivityChipsViewModel: OngoingActivityChipsViewModel,
-    statusBarPopupChipsViewModelStore: StatusBarPopupChipsViewModelStore,
+    statusBarPopupChipsViewModelFactory: StatusBarPopupChipsViewModel.Factory,
     animations: SystemStatusEventAnimationInteractor,
     statusBarContentInsetsViewModelStore: StatusBarContentInsetsViewModelStore,
     @DisplayAware bgDisplayScope: CoroutineScope,
@@ -291,10 +288,7 @@ constructor(
 
     val tableLogger = tableLoggerFactory.getOrCreate(tableLogBufferName(thisDisplayId), 200)
 
-    // Lunaris Bar: one popup chips view model per display, activated by the store.
-    private val statusBarPopupChips by lazy {
-        statusBarPopupChipsViewModelStore.forDisplay(thisDisplayId)
-    }
+    private val statusBarPopupChips by lazy { statusBarPopupChipsViewModelFactory.create() }
 
     override val isTransitioningFromLockscreenToOccluded: StateFlow<Boolean> =
         if (SceneContainerFlag.isEnabled) {
@@ -327,9 +321,6 @@ constructor(
 
     override val popupChips
         get() = statusBarPopupChips.shownPopupChips
-
-    override val mediaTransitionChip
-        get() = statusBarPopupChips.mediaTransitionChip
 
     private val isShadeExpandedEnough =
         // Keep the status bar visible while the shade is just starting to open or while a HUN is
@@ -785,6 +776,9 @@ constructor(
     override suspend fun onActivated(): Nothing {
         coroutineScope {
             launch { hydrator.activate() }
+            if (StatusBarPopupChips.isEnabled) {
+                launch { statusBarPopupChips.activate() }
+            }
             launch { uiEventLogger.hydrateUiEventLogging(chipsFlow = chipsVisibilityModel) }
             awaitCancellation()
         }

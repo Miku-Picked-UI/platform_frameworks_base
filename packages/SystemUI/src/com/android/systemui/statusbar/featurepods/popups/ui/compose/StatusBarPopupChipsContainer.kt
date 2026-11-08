@@ -21,14 +21,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.dp
+import com.android.systemui.media.controls.ui.view.MediaHost
+import com.android.systemui.media.remedia.ui.viewmodel.MediaViewModel
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.statusbar.featurepods.popups.ui.model.PopupChipId
 import com.android.systemui.statusbar.featurepods.popups.ui.model.PopupChipModel
@@ -37,23 +35,11 @@ import com.android.systemui.statusbar.featurepods.popups.ui.model.PopupChipModel
 @Composable
 fun StatusBarPopupChipsContainer(
     chips: List<PopupChipModel.Shown>,
+    mediaViewModelFactory: MediaViewModel.Factory,
+    mediaHost: MediaHost,
     onMediaControlPopupVisibilityChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var popupAnchorChip by remember { mutableStateOf<PopupChipModel.Shown?>(null) }
-    var popupVisible by remember { mutableStateOf(false) }
-    var anchorBoundsByChip by remember { mutableStateOf<Map<PopupChipId, Rect>>(emptyMap()) }
-
-    val shownChip = remember(chips) { chips.firstOrNull { it.isPopupShown } }
-    LaunchedEffect(shownChip) {
-        if (shownChip != null) {
-            popupAnchorChip = shownChip
-            popupVisible = true
-        } else if (popupAnchorChip != null) {
-            popupVisible = false
-        }
-    }
-
     if (!SceneContainerFlag.isEnabled) {
         val isMediaControlPopupShown =
             remember(chips) {
@@ -65,28 +51,21 @@ fun StatusBarPopupChipsContainer(
         }
     }
 
+    //    TODO(b/385353140): Add padding and spacing for this container according to UX specs.
     Box {
         Row(
             modifier = modifier.padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             chips.forEach { chip ->
-                StatusBarPopupChip(
-                    viewModel = chip,
-                    onChipBoundsChanged = { bounds ->
-                        anchorBoundsByChip = anchorBoundsByChip + (chip.chipId to bounds)
-                    },
-                )
-            }
-            popupAnchorChip?.let { anchoredChip ->
-                StatusBarPopup(
-                    viewModel = shownChip ?: anchoredChip,
-                    isVisible = popupVisible,
-                    chipBoundsInScreen = anchorBoundsByChip[anchoredChip.chipId],
-                    onHidden = {
-                        if (shownChip == null) popupAnchorChip = null
-                    },
-                )
+                StatusBarPopupChip(chip)
+                if (chip.isPopupShown) {
+                    StatusBarPopup(
+                        viewModel = chip,
+                        mediaViewModelFactory = mediaViewModelFactory,
+                        mediaHost = mediaHost,
+                    )
+                }
             }
         }
     }

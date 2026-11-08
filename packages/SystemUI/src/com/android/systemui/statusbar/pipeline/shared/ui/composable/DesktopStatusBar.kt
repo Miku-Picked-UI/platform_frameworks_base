@@ -137,6 +137,8 @@ fun DesktopStatusBar(
             if (StatusBarPopupChips.isEnabled) {
                 StatusBarPopupChipsContainer(
                     chips = viewModel.popupChips,
+                    mediaViewModelFactory = mediaViewModelFactory,
+                    mediaHost = mediaHost,
                     onMediaControlPopupVisibilityChanged = { popupShowing ->
                         mediaHierarchyManager.isMediaControlPopupShowing = popupShowing
                     },

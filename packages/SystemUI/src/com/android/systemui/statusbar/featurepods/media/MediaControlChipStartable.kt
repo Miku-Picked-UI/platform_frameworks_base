@@ -24,7 +24,11 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-/** A [CoreStartable] that initializes and starts the media control chip functionality. */
+/**
+ * A [CoreStartable] that initializes and starts the media control chip functionality. The media
+ * chip is limited to large screen devices currently. Therefore, this [CoreStartable] should not be
+ * used for phones or smaller form factor devices.
+ */
 @SysUISingleton
 class MediaControlChipStartable
 @Inject
