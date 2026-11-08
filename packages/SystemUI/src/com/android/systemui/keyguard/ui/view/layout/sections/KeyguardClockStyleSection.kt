@@ -16,7 +16,6 @@
 package com.android.systemui.keyguard.ui.view.layout.sections
 
 import android.content.Context
-import android.os.UserHandle
 import android.view.View
 import android.view.ViewGroup
 import androidx.constraintlayout.widget.Barrier
@@ -26,32 +25,24 @@ import com.android.systemui.clocks.ClockStyle
 import com.android.systemui.keyguard.shared.model.KeyguardSection
 import com.android.systemui.res.R
 import com.android.systemui.shared.R as sharedR
-import com.android.systemui.util.settings.SecureSettings
 import javax.inject.Inject
 
 class KeyguardClockStyleSection
 @Inject
 constructor(
     private val context: Context,
-    private val secureSettings: SecureSettings,
 ) : KeyguardSection() {
     
     private var clockStyleView: ClockStyle? = null
-    private var isCustomClockEnabled: Boolean = false
-    
+
+    // Miku-Picked UI: always add the clock view. ClockStyle shows or hides itself from the
+    // live setting (TunerService), so a style can be switched on, changed and switched off
+    // without restarting SystemUI, and the stock clock is hidden by ClockStyle itself.
     override fun addViews(constraintLayout: ConstraintLayout) {
-        
-        val clockStyle = secureSettings.getIntForUser(
-            ClockStyle.CLOCK_STYLE_KEY, 0, UserHandle.USER_CURRENT
-        )
-        isCustomClockEnabled = clockStyle != 0
-        
-        if (!isCustomClockEnabled) return
-        
         constraintLayout.findViewById<View?>(R.id.clock_ls)?.let { existingView ->
             (existingView.parent as? ViewGroup)?.removeView(existingView)
         }
-        
+
         val inflater = android.view.LayoutInflater.from(context)
         clockStyleView = inflater.inflate(R.layout.keyguard_clock_style, null) as ClockStyle
         clockStyleView?.apply {
@@ -60,12 +51,11 @@ constructor(
                 ConstraintLayout.LayoutParams.MATCH_PARENT,
                 ConstraintLayout.LayoutParams.WRAP_CONTENT
             )
-            visibility = View.VISIBLE
         }
-        
+
         clockStyleView?.let { constraintLayout.addView(it) }
     }
-    
+
     override fun bindData(constraintLayout: ConstraintLayout) {
         clockStyleView?.let { clockView ->
             clockView.onTimeChanged()
@@ -74,8 +64,6 @@ constructor(
     }
     
     override fun applyConstraints(constraintSet: ConstraintSet) {
-        if (!isCustomClockEnabled) return
-        
         constraintSet.apply {
             // Clock positioning - TOP of hierarchy
             connect(R.id.clock_ls, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)

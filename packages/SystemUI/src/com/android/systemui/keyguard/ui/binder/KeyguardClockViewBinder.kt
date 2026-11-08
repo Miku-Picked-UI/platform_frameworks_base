@@ -263,6 +263,8 @@ object KeyguardClockViewBinder {
                 rootView.addView(it).apply { it.visibility = INVISIBLE }
             }
         }
+        // Miku-Picked UI: keep the stock clock hidden while a custom clock style is shown
+        com.android.systemui.clocks.AospClockHider.reapply(rootView)
     }
 
     fun applyConstraints(

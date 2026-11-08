@@ -339,8 +339,13 @@ class ClockStyle @JvmOverloads constructor(
 
         forceTimeUpdate()
         visibility = if (clockStyle != 0) View.VISIBLE else View.GONE
+        (parent as? ViewGroup)?.let { AospClockHider.apply(it, isCustomStyleActive) }
         if (isDozing && clockStyle != 0) startAodTick()
     }
+
+    /** Miku-Picked UI: whether a custom style is shown (the stock clock is hidden then). */
+    val isCustomStyleActive: Boolean
+        get() = clockStyle != 0
 
     private fun cacheClockViews(root: View) {
         when (root) {
