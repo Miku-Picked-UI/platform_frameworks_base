@@ -6900,6 +6900,13 @@ public final class Settings {
         @Readable
         public static final String UDFPS_ICON = "udfps_icon";
 
+        /**
+         * Now Bar: lockscreen pill with the playing media and its controls (1 = on, default).
+         * @hide
+         */
+        @Readable
+        public static final String NOW_BAR_ENABLED = "now_bar_enabled";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**

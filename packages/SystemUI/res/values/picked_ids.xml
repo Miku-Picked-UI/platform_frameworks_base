@@ -7,4 +7,6 @@
     <!-- [Evolution X] Custom lockscreen clocks: view tags -->
     <item type="id" name="original_text_color" />
     <item type="id" name="original_typeface" />
+    <!-- Now Bar (lockscreen media pill) -->
+    <item type="id" name="picked_now_bar" />
 </resources>

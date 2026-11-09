@@ -42,4 +42,9 @@
 
     <!-- [Evolution X] Sleep Mode tile -->
     <string name="quick_settings_sleep_mode_label">Sleep Mode</string>
+    <!-- Now Bar (lockscreen media pill) -->
+    <string name="picked_now_bar_previous">Previous track</string>
+    <string name="picked_now_bar_next">Next track</string>
+    <string name="picked_now_bar_play">Play</string>
+    <string name="picked_now_bar_pause">Pause</string>
 </resources>

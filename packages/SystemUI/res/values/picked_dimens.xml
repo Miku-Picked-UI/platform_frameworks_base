@@ -13,4 +13,8 @@
 
     <!-- [Evolution X] Extra top margin of the custom lockscreen clock frame -->
     <dimen name="custom_clock_frame_margin_top">0dp</dimen>
+    <!-- Now Bar (lockscreen media pill) -->
+    <dimen name="picked_now_bar_side_margin">24dp</dimen>
+    <dimen name="picked_now_bar_bottom_margin">20dp</dimen>
+    <dimen name="picked_now_bar_max_width">480dp</dimen>
 </resources>
