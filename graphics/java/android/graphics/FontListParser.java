@@ -133,10 +133,15 @@ public class FontListParser {
     ) throws IOException, XmlPullParserException {
         FontCustomizationParser.Result oemCustomization = new FontCustomizationParser.Result();
         for (String customizationXmlPath : customizationXmlPaths) {
+            // Miku-Picked UI: a customization XML under /data (the user's custom emoji) has
+            // its font files next to it; all others use the product font directory.
+            final String fontDir = customizationXmlPath.startsWith("/data/")
+                    ? new File(customizationXmlPath).getParent() + "/"
+                    : productFontDir;
             try (InputStream is = new FileInputStream(customizationXmlPath)) {
                 oemCustomization = mergeCustomizationResults(
                         oemCustomization,
-                        FontCustomizationParser.parse(is, productFontDir, updatableFontMap));
+                        FontCustomizationParser.parse(is, fontDir, updatableFontMap));
             } catch (IOException e) {
                 // OEM customization may not exist. Ignoring.
             }

@@ -69,6 +69,13 @@ public final class SystemFonts {
     private static final String OEM_EMOJI_XML_PREFIX = "/product/etc/fonts_customization_emoji_";
     private static final String PROP_EMOJI_STYLE = "persist.sys.ax_emoji_style";
     private static final String EMOJI_STYLE_ANDROID = "android";
+    // Miku-Picked UI: "custom" loads an emoji font the user picked in Settings. Settings keeps
+    // it with its customization XML in its device protected storage (readable at boot, before
+    // the first unlock, and by system_server, which builds the system font map).
+    private static final String EMOJI_STYLE_CUSTOM = "custom";
+    private static final String CUSTOM_EMOJI_XML =
+            "/data/user_de/0/com.android.settings/files/picked_emoji/"
+                    + "fonts_customization_emoji_custom.xml";
     /** @hide */
     public static final String OEM_FONT_DIR = "/product/fonts/";
 
@@ -434,6 +441,9 @@ public final class SystemFonts {
         if (style.isEmpty() || EMOJI_STYLE_ANDROID.equals(style)
                 || !style.matches("[a-z0-9_]+")) {
             return null;
+        }
+        if (EMOJI_STYLE_CUSTOM.equals(style)) {
+            return new File(CUSTOM_EMOJI_XML).exists() ? CUSTOM_EMOJI_XML : null;
         }
         final String xml = OEM_EMOJI_XML_PREFIX + style + ".xml";
         return new File(xml).exists() ? xml : null;
