@@ -4600,6 +4600,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case KeyEvent.KEYCODE_VOLUME_DOWN:
             case KeyEvent.KEYCODE_VOLUME_UP:
             case KeyEvent.KEYCODE_VOLUME_MUTE: {
+                if (interceptVolumeMusicSkip(event, interactive)) {
+                    result &= ~ACTION_PASS_TO_USER;
+                    break;
+                }
                 int gestureType = keyCode == KEYCODE_VOLUME_DOWN
                         ? KeyGestureEvent.KEY_GESTURE_TYPE_VOLUME_DOWN
                         : keyCode == KEYCODE_VOLUME_UP
@@ -5199,6 +5203,94 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     private boolean shouldCecAudioDeviceForwardVolumeKeysSystemAudioModeOff() {
         return RoSystemProperties.CEC_AUDIO_DEVICE_FORWARD_VOLUME_KEYS_SYSTEM_AUDIO_MODE_OFF;
+    }
+
+    // Miku-Picked UI: skip tracks with the volume keys while the screen is off.
+    // Holding volume up / volume down while music plays and the screen is off goes to the next /
+    // previous track; a short press still changes the volume. Settings.System
+    // VOLUME_BUTTON_MUSIC_CONTROL (on by default). Same idea as LineageOS' volume rocker music
+    // controls, written for this tree.
+    private KeyEvent mVolumeSkipDown;
+    private boolean mVolumeSkipDone;
+    private PowerManager.WakeLock mVolumeSkipWakeLock;
+    private final Runnable mVolumeSkipLongPress = () -> {
+        final KeyEvent down = mVolumeSkipDown;
+        if (down == null) return;
+        mVolumeSkipDone = true;
+        final int media = down.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP
+                ? KeyEvent.KEYCODE_MEDIA_NEXT : KeyEvent.KEYCODE_MEDIA_PREVIOUS;
+        final long now = SystemClock.uptimeMillis();
+        dispatchMediaKeyWithWakeLockToAudioService(new KeyEvent(now, now,
+                KeyEvent.ACTION_DOWN, media, 0));
+        dispatchMediaKeyWithWakeLockToAudioService(new KeyEvent(now, now,
+                KeyEvent.ACTION_UP, media, 0));
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, "Volume - Skip track");
+    };
+
+    /**
+     * Handles a volume key for the volume key track skip. Returns true if the key was used
+     * here (it must then not be handled further).
+     */
+    private boolean interceptVolumeMusicSkip(KeyEvent event, boolean interactive) {
+        final int keyCode = event.getKeyCode();
+        if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) {
+            return false;
+        }
+        final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+        final KeyEvent armed = mVolumeSkipDown;
+        if (armed != null) {
+            if (armed.getKeyCode() != keyCode) {
+                // The other volume key: stop tracking, handle both keys normally from here.
+                finishVolumeMusicSkip(false);
+                return false;
+            }
+            if (down) return true; // key repeat while held
+            final boolean skipped = mVolumeSkipDone;
+            finishVolumeMusicSkip(!skipped && !event.isCanceled());
+            if (!skipped && !event.isCanceled()) {
+                MediaSessionLegacyHelper.getHelper(mContext).sendVolumeKeyEvent(
+                        event, AudioManager.USE_DEFAULT_STREAM_TYPE, true);
+            }
+            return true;
+        }
+        if (!down || event.getRepeatCount() != 0 || interactive
+                || mUseTvRouting || mHandleVolumeKeysInWM) {
+            return false;
+        }
+        if (Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.VOLUME_BUTTON_MUSIC_CONTROL, 1, UserHandle.USER_CURRENT) == 0) {
+            return false;
+        }
+        if (!AudioSystem.isStreamActive(AudioManager.STREAM_MUSIC, 0)) return false;
+        final TelecomManager telecom = getTelecommService();
+        if (telecom != null && (telecom.isRinging() || telecom.isInCall())) return false;
+
+        mVolumeSkipDown = event;
+        mVolumeSkipDone = false;
+        if (mVolumeSkipWakeLock == null) {
+            mVolumeSkipWakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                    "PhoneWindowManager.mVolumeSkipWakeLock");
+        }
+        // Keeps the device awake until the long press is decided.
+        mVolumeSkipWakeLock.acquire(5000);
+        mHandler.postDelayed(mVolumeSkipLongPress,
+                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout());
+        return true;
+    }
+
+    /** Stops tracking; with {@code replayDown} the held key's down event changes the volume. */
+    private void finishVolumeMusicSkip(boolean replayDown) {
+        mHandler.removeCallbacks(mVolumeSkipLongPress);
+        final KeyEvent down = mVolumeSkipDown;
+        mVolumeSkipDown = null;
+        mVolumeSkipDone = false;
+        if (replayDown && down != null) {
+            MediaSessionLegacyHelper.getHelper(mContext).sendVolumeKeyEvent(
+                    down, AudioManager.USE_DEFAULT_STREAM_TYPE, true);
+        }
+        if (mVolumeSkipWakeLock != null && mVolumeSkipWakeLock.isHeld()) {
+            mVolumeSkipWakeLock.release();
+        }
     }
 
     void dispatchMediaKeyWithWakeLock(KeyEvent event) {

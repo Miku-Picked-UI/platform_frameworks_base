@@ -6907,6 +6907,14 @@ public final class Settings {
         @Readable
         public static final String NOW_BAR_ENABLED = "now_bar_enabled";
 
+        /**
+         * Skip tracks by holding volume up / down while music plays and the screen is off
+         * (1 = on, default).
+         * @hide
+         */
+        @Readable
+        public static final String VOLUME_BUTTON_MUSIC_CONTROL = "volume_button_music_control";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
