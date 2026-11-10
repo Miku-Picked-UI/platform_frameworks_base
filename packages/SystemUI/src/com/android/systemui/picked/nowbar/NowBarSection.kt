@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import com.android.systemui.keyguard.shared.model.KeyguardSection
+import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.res.R
 import javax.inject.Inject
 
@@ -18,7 +19,12 @@ import javax.inject.Inject
  * entry (fingerprint / lock) icon. The lockscreen notifications end above it while it shows
  * (see NotificationStackScrollLayoutSection).
  */
-class NowBarSection @Inject constructor(private val context: Context) : KeyguardSection() {
+class NowBarSection
+@Inject
+constructor(
+    private val context: Context,
+    private val activityStarter: ActivityStarter,
+) : KeyguardSection() {
 
     private var nowBar: NowBarView? = null
 
@@ -26,7 +32,7 @@ class NowBarSection @Inject constructor(private val context: Context) : Keyguard
         constraintLayout.findViewById<NowBarView?>(R.id.picked_now_bar)?.let {
             (it.parent as? ViewGroup)?.removeView(it)
         }
-        nowBar = NowBarView(context).also {
+        nowBar = NowBarView(context, activityStarter).also {
             it.layoutParams = ConstraintLayout.LayoutParams(
                 ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
                 ConstraintLayout.LayoutParams.WRAP_CONTENT,

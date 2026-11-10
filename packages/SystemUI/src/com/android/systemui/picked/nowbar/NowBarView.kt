@@ -43,7 +43,10 @@ import com.android.systemui.tuner.TunerService
  * It follows the active media sessions itself (SystemUI holds MEDIA_CONTENT_CONTROL), hides
  * while nothing is playing or paused, on AOD, and when Settings.System.NOW_BAR_ENABLED is 0.
  */
-class NowBarView(context: Context) : LinearLayout(context), TunerService.Tunable {
+class NowBarView(
+    context: Context,
+    private val activityStarter: ActivityStarter,
+) : LinearLayout(context), TunerService.Tunable {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val sessionManager = context.getSystemService(MediaSessionManager::class.java)
@@ -147,7 +150,7 @@ class NowBarView(context: Context) : LinearLayout(context), TunerService.Tunable
         // Tapping the song opens the player once the device is unlocked.
         val openPlayer = OnClickListener {
             val intent = controller?.sessionActivity ?: return@OnClickListener
-            Dependency.get(ActivityStarter::class.java).startPendingIntentDismissingKeyguard(intent)
+            activityStarter.startPendingIntentDismissingKeyguard(intent)
         }
         art.setOnClickListener(openPlayer)
         texts.setOnClickListener(openPlayer)
