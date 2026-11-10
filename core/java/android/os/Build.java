@@ -115,7 +115,8 @@ public class Build {
     public static final String CPU_ABI2;
 
     /** The manufacturer of the product/hardware. */
-    public static final String MANUFACTURER = getString("ro.product.manufacturer");
+    public static final String MANUFACTURER =
+            googleSpoofForWear(getString("ro.product.manufacturer"));
 
     /**
      * The manufacturer name for attestation. In non-default builds (like the AOSP build) the value
@@ -129,7 +130,20 @@ public class Build {
             getVendorDeviceIdProperty("manufacturer");
 
     /** The consumer-visible brand with which the product/hardware will be associated, if any. */
-    public static final String BRAND = getString("ro.product.brand");
+    public static final String BRAND = googleSpoofForWear(getString("ro.product.brand"));
+
+    /**
+     * Miku-Picked UI: "Google spoof for wearables" (Settings > Miku-Picked). When
+     * persist.sys.picked.google_spoof_wear is set, apps see Google as the brand and the
+     * manufacturer, so watch companion apps that only pair with Google phones (Pixel Watch and
+     * other Wear OS apps) work. It is read once when zygote starts, so changing it needs a
+     * restart. The attestation values (BRAND_FOR_ATTESTATION, MANUFACTURER_FOR_ATTESTATION) and
+     * the system properties themselves are left as they are.
+     */
+    private static String googleSpoofForWear(String value) {
+        return SystemProperties.getBoolean("persist.sys.picked.google_spoof_wear", false)
+                ? "google" : value;
+    }
 
     /**
      * The product brand for attestation. In non-default builds (like the AOSP build) the value of
