@@ -70,12 +70,22 @@ public final class SystemFonts {
     private static final String PROP_EMOJI_STYLE = "persist.sys.ax_emoji_style";
     private static final String EMOJI_STYLE_ANDROID = "android";
     // Miku-Picked UI: "custom" loads an emoji font the user picked in Settings. Settings keeps
-    // it with its customization XML in its device protected storage (readable at boot, before
-    // the first unlock, and by system_server, which builds the system font map).
-    private static final String EMOJI_STYLE_CUSTOM = "custom";
-    private static final String CUSTOM_EMOJI_XML =
-            "/data/user_de/0/com.android.settings/files/picked_emoji/"
-                    + "fonts_customization_emoji_custom.xml";
+    // the font in its device protected storage (PICKED_EMOJI_SOURCE_DIR); at boot
+    // FontManagerService copies it to PICKED_EMOJI_DIR (labeled font_data_file, created by
+    // init.picked.rc), because every app opens the system fonts by path and only that label is
+    // readable by all apps.
+    /** @hide */
+    public static final String EMOJI_STYLE_CUSTOM = "custom";
+    /** @hide */
+    public static final String PICKED_EMOJI_SOURCE_DIR =
+            "/data/user_de/0/com.android.settings/files/picked_emoji/";
+    /** @hide */
+    public static final String PICKED_EMOJI_DIR = "/data/fonts/picked/";
+    /** @hide */
+    public static final String PICKED_EMOJI_FONT = "PickedCustomEmoji.ttf";
+    /** @hide */
+    public static final String PICKED_EMOJI_XML = "fonts_customization_emoji_custom.xml";
+    private static final String CUSTOM_EMOJI_XML = PICKED_EMOJI_DIR + PICKED_EMOJI_XML;
     /** @hide */
     public static final String OEM_FONT_DIR = "/product/fonts/";
 
@@ -436,14 +446,21 @@ public final class SystemFonts {
         }
     }
 
+    /** The emoji style picked in Settings (persist.sys.ax_emoji_style). @hide */
+    public static @NonNull String getEmojiStyle() {
+        return SystemProperties.get(PROP_EMOJI_STYLE, EMOJI_STYLE_ANDROID);
+    }
+
     private static @Nullable String getEmojiCustomizationXml() {
-        final String style = SystemProperties.get(PROP_EMOJI_STYLE, EMOJI_STYLE_ANDROID);
+        final String style = getEmojiStyle();
         if (style.isEmpty() || EMOJI_STYLE_ANDROID.equals(style)
                 || !style.matches("[a-z0-9_]+")) {
             return null;
         }
         if (EMOJI_STYLE_CUSTOM.equals(style)) {
-            return new File(CUSTOM_EMOJI_XML).exists() ? CUSTOM_EMOJI_XML : null;
+            return new File(CUSTOM_EMOJI_XML).exists()
+                    && new File(PICKED_EMOJI_DIR + PICKED_EMOJI_FONT).canRead()
+                    ? CUSTOM_EMOJI_XML : null;
         }
         final String xml = OEM_EMOJI_XML_PREFIX + style + ".xml";
         return new File(xml).exists() ? xml : null;

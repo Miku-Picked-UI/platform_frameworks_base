@@ -245,6 +245,7 @@ public final class FontManagerService extends IFontManager.Stub {
         }
         mContext = context;
         mIsSafeMode = safeMode;
+        installPickedCustomEmoji();
 
         if (Flags.useOptimizedBoottimeFontLoading()) {
             Slog.i(TAG, "Using optimized boot-time font loading.");
@@ -266,6 +267,82 @@ public final class FontManagerService extends IFontManager.Stub {
             initialize();
             setSystemFontMap();
             serviceStarted.complete(null);
+        }
+    }
+
+    /**
+     * Miku-Picked UI: puts the custom emoji font picked in Settings where every app can read it
+     * (SystemFonts.PICKED_EMOJI_DIR), before the system font map is built. The customization XML
+     * is written here, not copied, so only the font file comes from Settings. With another emoji
+     * style the copy is removed.
+     */
+    private static void installPickedCustomEmoji() {
+        final File dir = new File(SystemFonts.PICKED_EMOJI_DIR);
+        final File font = new File(dir, SystemFonts.PICKED_EMOJI_FONT);
+        final File xml = new File(dir, SystemFonts.PICKED_EMOJI_XML);
+        try {
+            if (!SystemFonts.EMOJI_STYLE_CUSTOM.equals(SystemFonts.getEmojiStyle())) {
+                xml.delete();
+                font.delete();
+                return;
+            }
+            if (!dir.isDirectory()) {
+                Slog.w(TAG, "No " + dir + ", custom emoji not available");
+                return;
+            }
+            final File src = new File(SystemFonts.PICKED_EMOJI_SOURCE_DIR,
+                    SystemFonts.PICKED_EMOJI_FONT);
+            if (!src.isFile() || !isSfnt(src)) {
+                Slog.w(TAG, "No usable custom emoji font in " + src);
+                xml.delete();
+                font.delete();
+                return;
+            }
+            if (!font.isFile() || font.length() != src.length()
+                    || font.lastModified() < src.lastModified()) {
+                final File tmp = new File(dir, SystemFonts.PICKED_EMOJI_FONT + ".tmp");
+                try (java.io.InputStream in = new java.io.FileInputStream(src);
+                     java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                    android.os.FileUtils.copy(in, out);
+                    out.getFD().sync();
+                }
+                if (!tmp.renameTo(font)) {
+                    tmp.delete();
+                    Slog.w(TAG, "Could not install the custom emoji font");
+                    return;
+                }
+            }
+            // Apps (other uids) open the font by path.
+            font.setReadable(true, false);
+            final String content = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                    + "<fonts-modification version=\"1\">\n"
+                    + "    <family customizationType=\"new-locale-family\" operation=\"prepend\""
+                    + " lang=\"und-Zsye\">\n"
+                    + "        <font weight=\"400\" style=\"normal\">"
+                    + SystemFonts.PICKED_EMOJI_FONT + "</font>\n"
+                    + "    </family>\n"
+                    + "</fonts-modification>\n";
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(xml)) {
+                out.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            xml.setReadable(true, false);
+            Slog.i(TAG, "Custom emoji font installed (" + font.length() + " bytes)");
+        } catch (IOException | RuntimeException e) {
+            Slog.e(TAG, "Installing the custom emoji font failed", e);
+            xml.delete();
+        }
+    }
+
+    /** TrueType (0x00010000 or "true") or OpenType CFF ("OTTO") header. */
+    private static boolean isSfnt(File file) {
+        try (java.io.InputStream in = new java.io.FileInputStream(file)) {
+            final byte[] h = new byte[4];
+            if (in.read(h) != 4) return false;
+            return (h[0] == 0 && h[1] == 1 && h[2] == 0 && h[3] == 0)
+                    || (h[0] == 't' && h[1] == 'r' && h[2] == 'u' && h[3] == 'e')
+                    || (h[0] == 'O' && h[1] == 'T' && h[2] == 'T' && h[3] == 'O');
+        } catch (IOException e) {
+            return false;
         }
     }
 
