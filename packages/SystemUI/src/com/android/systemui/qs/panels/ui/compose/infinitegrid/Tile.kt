@@ -228,6 +228,7 @@ fun ContentScope.Tile(
         TileExpandable(
             color = { animatedColor },
             shape = tileShape,
+            glassBackdrop = uiState.state != STATE_ACTIVE,
             squishiness = squishiness,
             hapticsViewModel = hapticsViewModel,
             modifier =
@@ -378,6 +379,7 @@ private fun TileExpandable(
     squishiness: () -> Float,
     hapticsViewModel: TileHapticsViewModel?,
     modifier: Modifier = Modifier,
+    glassBackdrop: Boolean = true,
     content: @Composable (Expandable) -> Unit,
 ) {
     // [PenguinOS] Liquid Glass tiles: the tile springs under the finger and SurfaceFlinger
@@ -388,7 +390,8 @@ private fun TileExpandable(
         modifier = modifier.liquidGlassPress(glass).clip(shape).verticalSquish(squishiness),
         useModifierBasedImplementation = true,
     ) {
-        if (glass) {
+        // Active tiles are solid color: no glass backdrop or rim to line up with their shape.
+        if (glass && glassBackdrop) {
             Box(Modifier.glassRim(shape)) {
                 content(hapticsViewModel?.createStateAwareExpandable(it) ?: it)
             }
