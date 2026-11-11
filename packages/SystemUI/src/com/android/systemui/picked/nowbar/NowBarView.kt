@@ -27,8 +27,10 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.text.TextUtils
 import android.text.format.DateUtils
-import android.transition.AutoTransition
+import android.transition.ChangeBounds
+import android.transition.Fade
 import android.transition.TransitionManager
+import android.transition.TransitionSet
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
@@ -39,6 +41,8 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.view.ViewTreeObserver
+import android.view.animation.OvershootInterpolator
+import android.view.animation.PathInterpolator
 import android.widget.Chronometer
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -158,6 +162,8 @@ class NowBarView(
     private var swiping = false
 
     private var cornerRadius = 0f
+    /** Whether the bar is (or is animating to being) on screen. */
+    private var shown = false
     private var effectiveAlpha = -1f
 
     private val progressUpdater = object : Runnable {
@@ -364,7 +370,7 @@ class NowBarView(
         setupButton(controls, bigNext, R.drawable.picked_now_bar_next, 64) { skipNext() }
         bigPrev.contentDescription = context.getString(R.string.picked_now_bar_previous)
         bigNext.contentDescription = context.getString(R.string.picked_now_bar_next)
-        listOf(bigPrev, bigNext).forEach { it.scaleX = 1.4f; it.scaleY = 1.4f }
+        listOf(bigPrev, bigNext).forEach { it.scaleX = BIG_ICON_SCALE; it.scaleY = BIG_ICON_SCALE }
         bigPlayPause.apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -466,9 +472,26 @@ class NowBarView(
         button.background = null
         button.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+            bounce(it)
             action()
         }
         parent.addView(button, LayoutParams(dp(sizeDp), dp(sizeDp)))
+    }
+
+    /** A quick squeeze and springy release, for buttons. */
+    private fun bounce(view: View) {
+        val base = if (view === bigPrev || view === bigNext) BIG_ICON_SCALE else 1f
+        view.animate().cancel()
+        view.animate()
+            .scaleX(base * 0.82f).scaleY(base * 0.82f)
+            .setDuration(90).setInterpolator(EMPHASIZED_ACCEL)
+            .withEndAction {
+                view.animate()
+                    .scaleX(base).scaleY(base)
+                    .setDuration(380).setInterpolator(OvershootInterpolator(3f))
+                    .start()
+            }
+            .start()
     }
 
     // endregion
@@ -512,18 +535,73 @@ class NowBarView(
             Log.e(TAG, "could not pause fingerprint", t)
         }
         if (animate) {
-            (parent as? ViewGroup)?.let {
-                TransitionManager.beginDelayedTransition(it, AutoTransition().setDuration(250))
-            }
+            (parent as? ViewGroup)?.let { TransitionManager.beginDelayedTransition(it, morph()) }
         }
         cornerRadius = dp(if (value) 28 else 32).toFloat()
         invalidate()
         refresh()
+        if (animate && value) staggerIn(expandedPanel)
+    }
+
+    /**
+     * The pill morphs into the large player (and back): the bounds glide with the emphasized
+     * curve while the old content fades out quickly and the new one fades in after it.
+     */
+    private fun morph() = TransitionSet().apply {
+        ordering = TransitionSet.ORDERING_TOGETHER
+        addTransition(ChangeBounds().apply {
+            duration = MORPH_MS
+            interpolator = EMPHASIZED
+        })
+        addTransition(Fade(Fade.OUT).apply {
+            duration = 120
+            interpolator = EMPHASIZED_ACCEL
+        })
+        addTransition(Fade(Fade.IN).apply {
+            startDelay = 140
+            duration = 260
+            interpolator = EMPHASIZED_DECEL
+        })
+    }
+
+    /** The large player's rows arrive one after another, rising into place. */
+    private fun staggerIn(panel: ViewGroup) {
+        for (i in 0 until panel.childCount) {
+            val child = panel.getChildAt(i)
+            child.animate().cancel()
+            child.alpha = 0f
+            child.translationY = dp(14).toFloat()
+            child.animate()
+                .alpha(1f).translationY(0f)
+                .setStartDelay(150L + i * 45L)
+                .setDuration(340)
+                .setInterpolator(EMPHASIZED_DECEL)
+                .start()
+        }
     }
 
     // endregion
 
     // region Paging
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> pressScale(if (expanded) 0.985f else 0.965f, true)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pressScale(1f, false)
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    /** Squeezes the bar under the finger and lets it spring back on release. */
+    private fun pressScale(target: Float, down: Boolean) {
+        if (!shown) return
+        animate()
+            .scaleX(target).scaleY(target)
+            .setStartDelay(0)
+            .setDuration(if (down) 140 else 420)
+            .setInterpolator(if (down) EMPHASIZED else OvershootInterpolator(2.2f))
+            .start()
+    }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         if (expanded || pages.size < 2) return false
@@ -554,7 +632,8 @@ class NowBarView(
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val dx = ev.x - downX
-                animate().translationX(0f).setDuration(180).start()
+                animate().translationX(0f).setDuration(300)
+                    .setInterpolator(OvershootInterpolator(1.4f)).start()
                 swiping = false
                 if (ev.actionMasked == MotionEvent.ACTION_UP && abs(dx) > dp(48)) {
                     performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -570,9 +649,23 @@ class NowBarView(
         val index = currentPage?.let { pages.indexOf(it) }?.coerceAtLeast(0) ?: 0
         currentPage = pages[(index + step + pages.size) % pages.size]
         (parent as? ViewGroup)?.let {
-            TransitionManager.beginDelayedTransition(it, AutoTransition().setDuration(200))
+            TransitionManager.beginDelayedTransition(it, ChangeBounds().apply {
+                duration = 320
+                interpolator = EMPHASIZED
+            })
         }
         refresh()
+        // The new page slides in from the side the finger went towards.
+        val row = if (compactRow.visibility == VISIBLE) compactRow else activityRow
+        row.animate().cancel()
+        row.alpha = 0f
+        row.translationX = dp(48).toFloat() * step
+        row.animate()
+            .alpha(1f).translationX(0f)
+            .setStartDelay(0)
+            .setDuration(340)
+            .setInterpolator(EMPHASIZED_DECEL)
+            .start()
     }
 
     private fun computePages(): List<Page> {
@@ -730,7 +823,7 @@ class NowBarView(
             mainHandler.removeCallbacks(progressUpdater)
             activityChrono.stop()
             if (expanded) setExpanded(false, animate = false)
-            visibility = GONE
+            hideAnimated(instant = dozing || !nowBarEnabled)
             return
         }
         if (page != Page.Media && expanded) setExpanded(false, animate = false)
@@ -741,7 +834,63 @@ class NowBarView(
             Page.Flashlight -> bindFlashlight()
             is Page.Ongoing -> bindOngoing(page.key)
         }
+        showAnimated()
+    }
+
+    /** Pops in: rises, grows and fades in with a little overshoot. */
+    private fun showAnimated() {
+        if (shown && visibility == VISIBLE) return
+        shown = true
+        animate().cancel()
+        val wasHidden = visibility != VISIBLE
         visibility = VISIBLE
+        if (!isAttachedToWindow || dozing) {
+            resetShowState()
+            return
+        }
+        if (wasHidden) {
+            alpha = 0f
+            scaleX = 0.86f
+            scaleY = 0.86f
+            translationY = dp(18).toFloat()
+        }
+        animate()
+            .alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+            .setStartDelay(0)
+            .setDuration(520)
+            .setInterpolator(OvershootInterpolator(1.15f))
+            .start()
+    }
+
+    /** Sinks, shrinks and fades out, then leaves the layout. */
+    private fun hideAnimated(instant: Boolean) {
+        if (!shown && visibility != VISIBLE) return
+        shown = false
+        animate().cancel()
+        if (instant || !isShown) {
+            visibility = GONE
+            resetShowState()
+            return
+        }
+        animate()
+            .alpha(0f).scaleX(0.9f).scaleY(0.9f).translationY(dp(10).toFloat())
+            .setStartDelay(0)
+            .setDuration(220)
+            .setInterpolator(EMPHASIZED_ACCEL)
+            .withEndAction {
+                if (!shown) {
+                    visibility = GONE
+                    resetShowState()
+                }
+            }
+            .start()
+    }
+
+    private fun resetShowState() {
+        alpha = 1f
+        scaleX = 1f
+        scaleY = 1f
+        translationY = 0f
     }
 
     private fun updateDots() {
@@ -933,6 +1082,13 @@ class NowBarView(
         private const val NOW_BAR_KEY = "system:" + Settings.System.NOW_BAR_ENABLED
         private const val NOW_BAR_STYLE_KEY = "system:" + Settings.System.NOW_BAR_STYLE
         private const val PROGRESS_INTERVAL_MS = 500L
+        private const val MORPH_MS = 460L
+        private const val BIG_ICON_SCALE = 1.4f
+
+        // Material 3 emphasized motion curves.
+        private val EMPHASIZED = PathInterpolator(0.2f, 0f, 0f, 1f)
+        private val EMPHASIZED_DECEL = PathInterpolator(0.05f, 0.7f, 0.1f, 1f)
+        private val EMPHASIZED_ACCEL = PathInterpolator(0.3f, 0f, 0.8f, 0.15f)
 
         /** The bar whose large player is open, for [consumeOutsideTouch]. */
         private var expandedBar: WeakReference<NowBarView>? = null

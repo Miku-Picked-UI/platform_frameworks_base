@@ -12,6 +12,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.RuntimeShader
 import android.graphics.Shader
+import android.os.SystemProperties
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
@@ -129,6 +130,9 @@ class NowBarBackground(private val view: View) {
             }
         canvas.drawRoundRect(rect, radius, radius, fillPaint)
 
+        // With system-wide Liquid Glass on, SurfaceFlinger already draws this blur region as a
+        // glass slab with a refracting rim; drawing ours too would double the edge.
+        if (liquid && blurring && SystemProperties.getBoolean(SYSTEM_GLASS_PROPERTY, false)) return
         if (liquid && drawLiquidRim(canvas, width, height, radius)) return
 
         // Frosted (and liquid without AGSL): a soft sheen from the top and a hairline rim.
@@ -185,6 +189,9 @@ class NowBarBackground(private val view: View) {
         const val STYLE_LIQUID = 0
         const val STYLE_FROSTED = 1
         const val STYLE_BLACK = 2
+
+        /** System-wide Liquid Glass in renderengine (from PenguinOS). */
+        private const val SYSTEM_GLASS_PROPERTY = "persist.sys.penguin.liquid_glass"
 
         private const val LIQUID_BLUR = 28
         private const val FROSTED_BLUR = 80
