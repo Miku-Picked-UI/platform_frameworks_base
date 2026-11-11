@@ -110,6 +110,10 @@ public class NotificationShadeWindowView extends WindowRootView {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
+        // Miku-Picked UI: a tap outside the Now Bar's open large player only closes it.
+        if (com.android.systemui.picked.nowbar.NowBarView.consumeOutsideTouch(ev)) {
+            return true;
+        }
         Boolean result = mInteractionEventHandler.handleDispatchTouchEvent(ev);
 
         result = result != null ? result : super.dispatchTouchEvent(ev);

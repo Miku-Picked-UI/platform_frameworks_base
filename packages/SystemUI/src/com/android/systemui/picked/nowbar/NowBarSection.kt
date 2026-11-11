@@ -11,6 +11,7 @@ import android.view.WindowManager
 import androidx.constraintlayout.widget.Barrier
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
+import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.systemui.biometrics.AuthController
 import com.android.systemui.biometrics.shared.model.UdfpsOverlayParams
 import com.android.systemui.keyguard.shared.model.KeyguardSection
@@ -35,6 +36,7 @@ constructor(
     private val activityStarter: ActivityStarter,
     private val activities: NowBarActivities,
     private val authController: AuthController,
+    private val keyguardUpdateMonitor: KeyguardUpdateMonitor,
 ) : KeyguardSection() {
 
     private var nowBar: NowBarView? = null
@@ -69,7 +71,7 @@ constructor(
             it.id = R.id.picked_now_bar_barrier
             constraintLayout.addView(it)
         }
-        nowBar = NowBarView(context, activityStarter, activities).also {
+        nowBar = NowBarView(context, activityStarter, activities, keyguardUpdateMonitor).also {
             it.layoutParams = ConstraintLayout.LayoutParams(
                 ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
                 ConstraintLayout.LayoutParams.WRAP_CONTENT,

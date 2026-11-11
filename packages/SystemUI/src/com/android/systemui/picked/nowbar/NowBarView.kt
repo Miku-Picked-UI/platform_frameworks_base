@@ -46,12 +46,15 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
+import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.systemui.Dependency
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.res.R
+import com.android.systemui.statusbar.StatusBarState
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.tuner.TunerService
+import java.lang.ref.WeakReference
 import kotlin.math.abs
 
 /**
@@ -62,7 +65,9 @@ import kotlin.math.abs
  *  - media: what is playing, with previous / play-pause / next. Tapping it expands the pill in
  *    place into a large player (big art, seek bar with times, large controls); there the art,
  *    the song or the open button opens the app's player (after unlocking) and the arrow
- *    collapses it again;
+ *    collapses it again, as does a tap anywhere outside it. While it is open it covers an
+ *    under-display fingerprint sensor, so lockscreen fingerprint unlock is paused until it
+ *    closes (opening the player closes it first, so the finger works for unlocking);
  *  - the flashlight while it is on, with a button that turns it off;
  *  - ongoing live notifications (timers, stopwatches, calls, navigation, recorders), with their
  *    chronometer; tapping one opens it (after unlocking).
@@ -77,6 +82,7 @@ class NowBarView(
     context: Context,
     private val activityStarter: ActivityStarter,
     private val activities: NowBarActivities,
+    private val keyguardUpdateMonitor: KeyguardUpdateMonitor,
 ) : LinearLayout(context), TunerService.Tunable {
 
     private sealed class Page {
@@ -181,6 +187,11 @@ class NowBarView(
     private val activitiesListener = NowBarActivities.Listener { refresh() }
 
     private val stateListener = object : StatusBarStateController.StateListener {
+        override fun onStateChanged(newState: Int) {
+            // Leaving the lockscreen (unlocked, shade pulled down) closes the large player.
+            if (newState != StatusBarState.KEYGUARD) setExpanded(false, animate = false)
+        }
+
         override fun onDozingChanged(isDozing: Boolean) {
             dozing = isDozing
             if (isDozing) setExpanded(false, animate = false)
@@ -477,9 +488,14 @@ class NowBarView(
         if (isPlaying(c.playbackState)) c.transportControls.pause() else c.transportControls.play()
     }
 
-    /** Opens the app's player once the device is unlocked. */
+    /**
+     * Opens the app's player once the device is unlocked. The large player closes first so
+     * fingerprint unlock is back on for the unlock this asks for.
+     */
     private fun openPlayer() {
-        controller?.sessionActivity?.let { startIntent(it) }
+        val intent = controller?.sessionActivity ?: return
+        setExpanded(false, animate = false)
+        startIntent(intent)
     }
 
     private fun startIntent(intent: PendingIntent) {
@@ -489,6 +505,12 @@ class NowBarView(
     private fun setExpanded(value: Boolean, animate: Boolean) {
         if (expanded == value) return
         expanded = value
+        expandedBar = if (value) WeakReference(this) else null
+        try {
+            keyguardUpdateMonitor.setPickedFingerprintPaused(value)
+        } catch (t: Throwable) {
+            Log.e(TAG, "could not pause fingerprint", t)
+        }
         if (animate) {
             (parent as? ViewGroup)?.let {
                 TransitionManager.beginDelayedTransition(it, AutoTransition().setDuration(250))
@@ -711,10 +733,7 @@ class NowBarView(
             visibility = GONE
             return
         }
-        if (page != Page.Media && expanded) {
-            expanded = false
-            cornerRadius = dp(32).toFloat()
-        }
+        if (page != Page.Media && expanded) setExpanded(false, animate = false)
 
         updateDots()
         when (page) {
@@ -914,6 +933,38 @@ class NowBarView(
         private const val NOW_BAR_KEY = "system:" + Settings.System.NOW_BAR_ENABLED
         private const val NOW_BAR_STYLE_KEY = "system:" + Settings.System.NOW_BAR_STYLE
         private const val PROGRESS_INTERVAL_MS = 500L
+
+        /** The bar whose large player is open, for [consumeOutsideTouch]. */
+        private var expandedBar: WeakReference<NowBarView>? = null
+        private var swallowingGesture = false
+
+        /**
+         * Called by NotificationShadeWindowView for every touch. While the large player is open,
+         * a touch that starts outside it closes it, and that whole gesture is consumed so it
+         * doesn't also open the bouncer or the shade. Returns true when consumed.
+         */
+        @JvmStatic
+        fun consumeOutsideTouch(ev: MotionEvent): Boolean {
+            if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+                swallowingGesture = false
+                val bar = expandedBar?.get() ?: return false
+                if (!bar.expanded || !bar.isAttachedToWindow || !bar.isShown) return false
+                val loc = IntArray(2)
+                bar.getLocationOnScreen(loc)
+                val inside = ev.rawX >= loc[0] && ev.rawX < loc[0] + bar.width &&
+                    ev.rawY >= loc[1] && ev.rawY < loc[1] + bar.height
+                if (inside) return false
+                bar.setExpanded(false, animate = true)
+                swallowingGesture = true
+                return true
+            }
+            if (!swallowingGesture) return false
+            if (ev.actionMasked == MotionEvent.ACTION_UP ||
+                ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+                swallowingGesture = false
+            }
+            return true
+        }
 
         private fun isPlaying(state: PlaybackState?): Boolean =
             state?.state == PlaybackState.STATE_PLAYING ||

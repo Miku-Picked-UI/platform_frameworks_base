@@ -347,6 +347,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
     private boolean mOccludingAppRequestingFp;
     private boolean mSecureCameraLaunched;
     private boolean mBiometricPromptShowing;
+    // Miku-Picked UI: fingerprint paused while the Now Bar's large player covers the sensor.
+    private boolean mPickedFingerprintPaused;
     private boolean mIsSecureLockDeviceEnabled;
     private boolean mSecureLockDeviceListeningForBiometrics;
 
@@ -3103,6 +3105,23 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
                 && !mUserHasTrust.get(mSelectedUserInteractor.getSelectedUserId(), false);
     }
 
+    /**
+     * Miku-Picked UI: pauses fingerprint listening on the lockscreen while the Now Bar's large
+     * player is open (it covers an under-display sensor), and resumes it when it closes. Has no
+     * effect while the primary or alternate bouncer is showing.
+     */
+    public void setPickedFingerprintPaused(boolean paused) {
+        Assert.isMainThread();
+        if (mPickedFingerprintPaused == paused) return;
+        mPickedFingerprintPaused = paused;
+        if (paused) {
+            mLogger.v("Fingerprint paused by the Now Bar");
+        } else {
+            mLogger.v("Fingerprint resumed by the Now Bar");
+        }
+        updateFingerprintListeningState(BIOMETRIC_ACTION_UPDATE);
+    }
+
     @VisibleForTesting
     protected boolean shouldListenForFingerprint(boolean isUdfps) {
         final int user = mSelectedUserInteractor.getSelectedUserId();
@@ -3150,9 +3169,13 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         final boolean shouldListenSecureLockDeviceState = !secureLockDevice()
                 || !mIsSecureLockDeviceEnabled || mSecureLockDeviceListeningForBiometrics;
 
+        // Miku-Picked UI: the Now Bar pause never applies while a bouncer asks for the finger
+        // or while the screen is off (unlocking from screen off must always work).
+        final boolean pickedPaused = mPickedFingerprintPaused && mDeviceInteractive
+                && !isPrimaryBouncerShowingOrWillBeShowing() && !isAlternateBouncerShowing();
         boolean shouldListen = shouldListenKeyguardState && shouldListenUserState
                 && shouldListenBouncerState && shouldListenUdfpsState && !mBiometricPromptShowing
-                && shouldListenSecureLockDeviceState;
+                && shouldListenSecureLockDeviceState && !pickedPaused;
         logListenerModelData(
                 new KeyguardFingerprintListenModel(
                     System.currentTimeMillis(),
