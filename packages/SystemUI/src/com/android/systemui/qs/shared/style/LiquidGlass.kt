@@ -84,7 +84,6 @@ object LiquidGlass {
     const val PROPERTY = "persist.sys.penguin.liquid_glass"
 
     private var state: State<Boolean>? = null
-    private var cosState: State<Boolean>? = null
 
     /** PenguinOS' glass style: "cos" (ColorOS) or the iOS-like default; SurfaceFlinger reads it too. */
     const val STYLE_PROPERTY = "persist.sys.penguin.liquid_glass_style"
