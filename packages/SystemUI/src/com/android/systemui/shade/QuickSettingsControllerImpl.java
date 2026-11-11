@@ -422,6 +422,30 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         dumpManager.registerDumpable(this);
 
         mWindowManagerProvider = windowManagerProvider;
+        sPickedInstance = new java.lang.ref.WeakReference<>(this);
+    }
+
+    // [Miku-Picked UI] One UI-style switching between the notifications and Quick Settings with
+    // a horizontal swipe (see NotificationShadeWindowView).
+    private static volatile java.lang.ref.WeakReference<QuickSettingsControllerImpl>
+            sPickedInstance;
+
+    /**
+     * Whether the shade is fully open on the notifications ({@code toQs}) or on Quick Settings
+     * (otherwise), so a horizontal swipe can switch to the other one.
+     */
+    static boolean pickedCanSwitchPanels(boolean toQs) {
+        final QuickSettingsControllerImpl qs = sPickedInstance != null ? sPickedInstance.get() : null;
+        if (qs == null || qs.mSplitShadeEnabled || !qs.isExpansionEnabled()) return false;
+        if (qs.mBarState == KEYGUARD || qs.mShadeExpandedFraction < 1f) return false;
+        return toQs != qs.getExpanded();
+    }
+
+    /** Switches to Quick Settings ({@code toQs}) or back to the notifications. */
+    static void pickedSwitchPanels(boolean toQs) {
+        final QuickSettingsControllerImpl qs = sPickedInstance != null ? sPickedInstance.get() : null;
+        if (qs == null || !pickedCanSwitchPanels(toQs)) return;
+        qs.flingQs(0 /* vel */, toQs ? FLING_EXPAND : FLING_COLLAPSE);
     }
 
     @VisibleForTesting
