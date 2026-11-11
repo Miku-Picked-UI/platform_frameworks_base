@@ -17,6 +17,11 @@
 package com.android.systemui.media.controls.ui.controller
 
 import android.content.Context
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.os.UserHandle
+import android.provider.Settings
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.view.View
@@ -105,9 +110,36 @@ constructor(
             onMediaHostVisibilityChanged(value)
         }
 
+    /**
+     * Miku-Picked UI: while the Now Bar (Settings.System.NOW_BAR_ENABLED) is on it shows the
+     * media on the lockscreen, so the stock player is hidden there.
+     */
+    private var nowBarEnabled = readNowBarEnabled()
+
+    private fun readNowBarEnabled(): Boolean =
+        Settings.System.getIntForUser(
+            context.contentResolver,
+            Settings.System.NOW_BAR_ENABLED,
+            1,
+            UserHandle.USER_CURRENT,
+        ) != 0
+
     init {
         dumpManager.registerDumpable(this)
         setUpListenersAndCallbacks()
+        context.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.NOW_BAR_ENABLED),
+            false,
+            object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean) {
+                    nowBarEnabled = readNowBarEnabled()
+                    if (!SceneContainerFlag.isEnabled) {
+                        refreshMediaPosition(reason = "NowBar setting changed")
+                    }
+                }
+            },
+            UserHandle.USER_ALL,
+        )
     }
 
     private fun setUpListenersAndCallbacks() {
@@ -316,7 +348,8 @@ constructor(
             isMediaHostVisible &&
                 isBypassNotEnabled &&
                 keyguardOrUserSwitcher &&
-                shouldBeVisibleForSplitShade
+                shouldBeVisibleForSplitShade &&
+                !nowBarEnabled
         logger.logRefreshMediaPosition(
             reason = reason,
             visible = visible,

@@ -132,6 +132,23 @@ constructor(
         secureSettings.getUriFor(Settings.Secure.MEDIA_CONTROLS_LOCK_SCREEN)
 
     /**
+     * Miku-Picked UI: the Now Bar (Settings.System.NOW_BAR_ENABLED) replaces the media player
+     * on the lockscreen, so the player stays in QS while it is on.
+     */
+    @Volatile private var nowBarEnabled: Boolean = true
+
+    private fun readNowBarEnabled(): Boolean =
+        Settings.System.getIntForUser(
+            context.contentResolver,
+            Settings.System.NOW_BAR_ENABLED,
+            1,
+            UserHandle.USER_CURRENT,
+        ) != 0
+
+    private fun lockscreenMediaAllowed(): Boolean =
+        allowMediaPlayerOnLockScreen && !nowBarEnabled
+
+    /**
      * Whether we "skip" QQS during panel expansion.
      *
      * This means that when expanding the panel we go directly to QS. Also when we are on QS and
@@ -662,6 +679,19 @@ constructor(
         secureSettings.registerContentObserverForUserAsync(
             Settings.Secure.MEDIA_CONTROLS_LOCK_SCREEN,
             settingsObserver,
+            UserHandle.USER_ALL,
+        )
+
+        // Miku-Picked UI: follow the Now Bar switch.
+        handler.post { nowBarEnabled = readNowBarEnabled() }
+        context.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.NOW_BAR_ENABLED),
+            false,
+            object : ContentObserver(handler) {
+                override fun onChange(selfChange: Boolean) {
+                    nowBarEnabled = readNowBarEnabled()
+                }
+            },
             UserHandle.USER_ALL,
         )
 
@@ -1280,7 +1310,7 @@ constructor(
                 // Communal does not have its own StatusBarState so it should always have higher
                 // priority for the UMO over the lockscreen.
                 isCommunalShowing -> LOCATION_COMMUNAL_HUB
-                onLockscreen && allowMediaPlayerOnLockScreen -> LOCATION_LOCKSCREEN
+                onLockscreen && lockscreenMediaAllowed() -> LOCATION_LOCKSCREEN
                 else -> LOCATION_QQS
             }
         // When we're on lock screen and the player is not active, we should keep it in QS.
@@ -1365,7 +1395,7 @@ constructor(
     }
 
     private fun isLockScreenVisibleToUser(): Boolean {
-        return isOnLockscreen && allowMediaPlayerOnLockScreen
+        return isOnLockscreen && lockscreenMediaAllowed()
     }
 
     private fun isHomeScreenShadeVisibleToUser(): Boolean {
