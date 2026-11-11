@@ -211,13 +211,16 @@ constructor(
     }
 
     /** Settings.System picked_qs_volume_slider (on by default). */
-    private fun qsVolumeSliderEnabled(): Boolean =
-        android.provider.Settings.System.getIntForUser(
-            requireContext().contentResolver,
+    private fun qsVolumeSliderEnabled(): Boolean {
+        // android.app.Fragment has no requireContext(); without a context keep the default (on).
+        val resolver = context?.contentResolver ?: return true
+        return android.provider.Settings.System.getIntForUser(
+            resolver,
             "picked_qs_volume_slider",
             1,
             android.os.UserHandle.USER_CURRENT,
         ) != 0
+    }
 
 
     private val scrollListener = MutableStateFlow<QS.ScrollListener?>(null)
