@@ -40,6 +40,8 @@ interface GridLayout {
         modifier: Modifier,
         listening: () -> Boolean,
         enableRevealEffect: Boolean,
+        // [PenguinOS] Lay the tiles out on this many columns instead of the grid's (Android 17).
+        columnsOverride: Int?,
     )
 
     @Composable

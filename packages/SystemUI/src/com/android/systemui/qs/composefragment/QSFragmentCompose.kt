@@ -193,6 +193,8 @@ constructor(
     // [PenguinOS] Quick Settings panel style (Settings.Secure qs_panel_style).
     private val qsPanelStyleRepository:
         com.android.systemui.qs.shared.style.QsPanelStyleRepository,
+    private val iconTilesViewModel:
+        com.android.systemui.qs.panels.ui.viewmodel.IconTilesViewModel,
 ) : LifecycleFragment(), QS, Dumpable {
 
     init {
@@ -959,9 +961,12 @@ constructor(
                             val panelStyle by qsPanelStyleRepository.style.collectAsState()
                             if (panelStyle ==
                                     com.android.systemui.qs.shared.style.QsPanelStyle.Penguin) {
+                                val largeTiles by iconTilesViewModel.largeTiles.collectAsState()
                                 CompositionLocalProvider(
                                     com.android.systemui.qs.shared.style.LocalQsPanelStyle
-                                        provides panelStyle
+                                        provides panelStyle,
+                                    com.android.systemui.qs.ui.composable.LocalQsLargeTiles
+                                        provides largeTiles,
                                 ) {
                                     PenguinGridQuickSettings(containerViewModel)
                                 }

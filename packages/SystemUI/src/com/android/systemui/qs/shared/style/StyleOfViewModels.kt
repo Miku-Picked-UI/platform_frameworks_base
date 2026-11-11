@@ -21,7 +21,4 @@ val QuickSettingsContainerViewModel.panelStyle: QsPanelStyle
 val ShadeSceneContentViewModel.panelStyle: QsPanelStyle
     @Composable get() = PenguinQsStyle.repository.style.collectAsState().value
 
-fun ShadeSceneContentViewModel.onConnectivityFolderExpandRequested() {
-    ConnectivityFolderExpansion.expanded = true
-    expandQuickSettings("Connectivity folder expanded from QQS.")
-}
+

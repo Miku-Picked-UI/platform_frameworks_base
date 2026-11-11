@@ -14,8 +14,10 @@ import com.android.compose.animation.scene.TransitionKey
 
 val CosShadeSwitch = TransitionKey("CosShadeSwitch")
 
-fun ObservableTransitionState.isCosShadeSwitch(): Boolean =
-    this is ObservableTransitionState.Transition && key == CosShadeSwitch
+// Miku-Picked UI: Android 16's ObservableTransitionState carries no transition key, and this
+// tree has no ColorOS shade switch.
+@Suppress("UnusedReceiverParameter")
+fun ObservableTransitionState.isCosShadeSwitch(): Boolean = false
 
 /** Part of a tablet panel switch over which the panel being left fades out. */
 const val PANEL_SWITCH_FADE_OUT_END = 0.5f

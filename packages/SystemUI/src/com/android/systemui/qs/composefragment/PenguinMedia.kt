@@ -751,7 +751,7 @@ private fun ScrubBar(
                                         currentShowing.onScrubChange?.invoke(
                                             (it.x / size.width).coerceIn(0f, 1f)
                                         )
-                                        currentShowing.onScrubFinished?.invoke(Offset.Zero, true)
+                                        currentShowing.onScrubFinished?.invoke(Offset.Zero)
                                     },
                                 )
                             }
@@ -764,11 +764,11 @@ private fun ScrubBar(
                                     },
                                     onDragEnd = {
                                         touching = false
-                                        currentShowing.onScrubFinished?.invoke(total, true)
+                                        currentShowing.onScrubFinished?.invoke(total)
                                     },
                                     onDragCancel = {
                                         touching = false
-                                        currentShowing.onScrubFinished?.invoke(Offset.Zero, false)
+                                        currentShowing.onScrubFinished?.invoke(Offset.Zero)
                                     },
                                 ) { change, dragAmount ->
                                     total += Offset(dragAmount, 0f)
@@ -984,9 +984,7 @@ private fun MediaCardContainer(
         Box(Modifier.clickable(onClick = expand)) { content() }
         return
     }
-    val expandable = remember { Expandable() }
     Expandable(
-        expandable = expandable,
         controller = rememberExpandableController(color = Color.Transparent, shape = shape),
         useModifierBasedImplementation = true,
         defaultMinSize = false,
@@ -1185,16 +1183,14 @@ private fun myUiControls(
 
 @Composable
 private fun OutputChip(chip: MediaDeviceChipViewModel, background: Color, foreground: Color) {
-    val expandable = remember { Expandable() }
     val interactive = LocalMediaCardInteractive.current
     Expandable(
-        expandable = expandable,
         controller =
             rememberExpandableController(color = background, shape = RoundedCornerShape(50)),
         useModifierBasedImplementation = false,
         defaultMinSize = false,
         modifier = Modifier.padding(start = 8.dp),
-    ) {
+    ) { expandable ->
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier =
@@ -1249,10 +1245,10 @@ private fun MyUiSeekBar(navigation: MediaNavigationViewModel, modifier: Modifier
                         detectHorizontalDragGestures(
                             onDragStart = { total = Offset.Zero },
                             onDragEnd = {
-                                currentShowing.onScrubFinished?.invoke(total, true)
+                                currentShowing.onScrubFinished?.invoke(total)
                             },
                             onDragCancel = {
-                                currentShowing.onScrubFinished?.invoke(Offset.Zero, false)
+                                currentShowing.onScrubFinished?.invoke(Offset.Zero)
                             },
                         ) { change, dragAmount ->
                             total += Offset(dragAmount, 0f)
@@ -1366,3 +1362,20 @@ private fun NotPlayingGlyph(iconRes: Int, size: Dp, tint: Color) {
         )
     }
 }
+
+// Miku-Picked UI: Android 17's MediaNavigationViewModel, on this tree's.
+
+/** The button to the left of the seek bar, whether or not the seek bar shows. */
+private val MediaNavigationViewModel.left: MediaSecondaryActionViewModel
+    get() = (this as? MediaNavigationViewModel.Showing)?.left ?: MediaSecondaryActionViewModel.None
+
+/** The button to the right of the seek bar, whether or not the seek bar shows. */
+private val MediaNavigationViewModel.right: MediaSecondaryActionViewModel
+    get() = (this as? MediaNavigationViewModel.Showing)?.right ?: MediaSecondaryActionViewModel.None
+
+/** This tree's media model has no position texts. */
+private val MediaNavigationViewModel.Showing.progressText: String
+    get() = ""
+
+private val MediaNavigationViewModel.Showing.durationText: String
+    get() = ""

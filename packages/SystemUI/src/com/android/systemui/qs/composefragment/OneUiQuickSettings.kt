@@ -16,6 +16,7 @@
 
 package com.android.systemui.qs.composefragment
 
+import com.android.systemui.qs.ui.composable.visualState
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.database.ContentObserver
