@@ -61,7 +61,8 @@ class PinKeyGlass(private val view: View) {
 
     /** Draws the glass rim over the key's [background]; call after the view drew. */
     fun drawRim(canvas: Canvas, background: Drawable?) {
-        if (!enabled || background == null) return
+        // The ColorOS style is frosted glass without the iOS-like lit rim.
+        if (!enabled || background == null || LiquidGlass.cosStyle(view.context).value) return
         val b = background.bounds
         if (b.isEmpty) return
         rect.set(b)

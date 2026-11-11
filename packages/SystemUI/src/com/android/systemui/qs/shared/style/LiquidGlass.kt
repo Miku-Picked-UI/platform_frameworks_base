@@ -4,10 +4,11 @@
  *
  * Miku-Picked UI: ported from PenguinOS (frameworks_base
  * packages/SystemUI/src/com/android/systemui/qs/shared/style/LiquidGlass.kt, by redducc and
- * Saikiran) with permission. Changes: Liquid Glass follows the system-wide switch
- * (persist.sys.penguin.liquid_glass, the property SurfaceFlinger's glass reads) instead of a
- * Penguin Laboratory setting; PenguinOS' ColorOS style, lockscreen art backdrop and glyph set
- * are left out; the debug.lg.* tuning properties are read once instead of being polled.
+ * Saikiran) with permission. Changes: Liquid Glass and its style follow the system-wide
+ * properties (persist.sys.penguin.liquid_glass / _style, which SurfaceFlinger's glass reads)
+ * instead of Penguin Laboratory settings; the lockscreen art backdrop is left out; the glyphs
+ * come from the optional PenguinAssets package; the debug.lg.* tuning properties are read once
+ * instead of being polled.
  */
 
 package com.android.systemui.qs.shared.style
@@ -85,11 +86,29 @@ object LiquidGlass {
     private var state: State<Boolean>? = null
     private var cosState: State<Boolean>? = null
 
-    /** PenguinOS' ColorOS glass style is not part of this port. */
-    private val cosOff: State<Boolean> = mutableStateOf(false)
+    /** PenguinOS' glass style: "cos" (ColorOS) or the iOS-like default; SurfaceFlinger reads it too. */
+    const val STYLE_PROPERTY = "persist.sys.penguin.liquid_glass_style"
+
+    private var cosState: State<Boolean>? = null
 
     @Suppress("UNUSED_PARAMETER")
-    fun cosStyle(context: Context): State<Boolean> = cosOff
+    fun cosStyle(context: Context): State<Boolean> =
+        cosState
+            ?: synchronized(this) {
+                cosState
+                    ?: run {
+                        val read = { SystemProperties.get(STYLE_PROPERTY) == "cos" }
+                        val value = mutableStateOf(read())
+                        val main = Handler(Looper.getMainLooper())
+                        SystemProperties.addChangeCallback {
+                            main.post {
+                                val now = read()
+                                if (value.value != now) value.value = now
+                            }
+                        }
+                        value.also { cosState = it }
+                    }
+            }
 
     fun enabled(context: Context): State<Boolean> =
         state

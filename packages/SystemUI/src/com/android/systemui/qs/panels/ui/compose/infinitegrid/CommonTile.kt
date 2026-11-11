@@ -130,6 +130,8 @@ fun LargeTileContent(
     textScale: () -> Float = { 1f },
     toggleClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    cosLottieSpec: String? = null,
+    active: Boolean = false,
 ) {
     val isDualTarget = toggleClick != null
     Row(
@@ -174,6 +176,8 @@ fun LargeTileContent(
                 color = colors.icon,
                 size = { CommonTileDefaults.LargeTileIconSize },
                 modifier = Modifier.align(Alignment.Center),
+                cosLottieSpec = cosLottieSpec,
+                active = active,
             )
         }
 
@@ -242,7 +246,14 @@ fun SmallTileContent(
     modifier: Modifier = Modifier,
     size: () -> Dp = { CommonTileDefaults.IconSize },
     animateToEnd: Boolean = false,
+    cosLottieSpec: String? = null,
+    active: Boolean = false,
 ) {
+    // [PenguinOS] ColorOS glass style: the tile's ColorOS toggle animation, when the optional
+    // PenguinAssets package has one for it.
+    if (cosLottieSpec != null && cosTileLottie(cosLottieSpec, active, color, color, size())) {
+        return
+    }
     val context = LocalContext.current
     val icon = iconProvider(context)
     val animatedColor by animateColorAsState(color, label = "QSTileIconColor")

@@ -20,11 +20,12 @@ package com.android.systemui.qs.panels.ui.compose.infinitegrid
 
 import com.android.systemui.qs.shared.style.LiquidGlassControl
 import com.android.systemui.qs.shared.style.LiquidGlassSurface
-import com.android.systemui.qs.shared.style.glassBlurRegion
+import com.android.systemui.qs.shared.style.PenguinAssets
+import com.android.systemui.qs.shared.style.glassRim
+import com.android.systemui.qs.shared.style.liquidGlassCosStyle
 import com.android.systemui.qs.shared.style.liquidGlassEnabled
 import com.android.systemui.qs.shared.style.liquidGlassOn
 import com.android.systemui.qs.shared.style.liquidGlassPress
-import com.android.systemui.qs.shared.style.liquidGlassRim
 import android.content.Context
 import android.content.res.Resources
 import android.os.Trace
@@ -314,11 +315,23 @@ fun ContentScope.Tile(
                 isDualTarget = isDualTarget,
                 modifier = contentRevealModifier,
             ) {
-                val iconProvider: Context.() -> Icon = { getTileIcon(icon = icon) }
+                // [PenguinOS] Liquid Glass glyphs, when the optional PenguinAssets package
+                // provides them; SystemUI's own icons otherwise.
+                val glyphs = liquidGlassEnabled() && !liquidGlassCosStyle()
+                val iconProvider: Context.() -> Icon = {
+                    (if (glyphs) PenguinAssets.glyph(this, tile.spec.spec) else null)
+                        ?.let { Icon.Loaded(it, null) }
+                        ?: getTileIcon(icon = icon)
+                }
+                val cosLottieSpec =
+                    if (liquidGlassEnabled() && liquidGlassCosStyle()) tile.spec.spec else null
+                val tileActive = uiState.state == STATE_ACTIVE
                 if (iconOnly) {
                     SmallTileContent(
                         iconProvider = iconProvider,
                         color = colors.icon,
+                        cosLottieSpec = cosLottieSpec,
+                        active = tileActive,
                         modifier =
                             Modifier.align(Alignment.Center).bounceScale {
                                 contentBounceable.iconBounceScale
@@ -349,6 +362,8 @@ fun ContentScope.Tile(
                         textScale = { contentBounceable.textBounceScale },
                         modifier =
                             Modifier.largeTilePadding(isDualTarget = uiState.handlesLongClick),
+                        cosLottieSpec = cosLottieSpec,
+                        active = tileActive,
                     )
                 }
             }
@@ -374,7 +389,7 @@ private fun TileExpandable(
         useModifierBasedImplementation = true,
     ) {
         if (glass) {
-            Box(Modifier.glassBlurRegion(shape).liquidGlassRim(shape)) {
+            Box(Modifier.glassRim(shape)) {
                 content(hapticsViewModel?.createStateAwareExpandable(it) ?: it)
             }
         } else {

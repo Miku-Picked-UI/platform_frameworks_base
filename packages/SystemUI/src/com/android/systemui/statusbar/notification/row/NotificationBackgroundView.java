@@ -271,7 +271,10 @@ public class NotificationBackgroundView extends View implements Dumpable,
     }
 
     private void drawGlassRim(Canvas canvas, Rect bounds) {
-        if (!glassOn() || bounds == null || bounds.isEmpty()) return;
+        if (!glassOn() || bounds == null || bounds.isEmpty()
+                || LiquidGlass.INSTANCE.cosStyle(getContext()).getValue()) {
+            return;
+        }
         mGlassBounds.set(bounds);
         LiquidGlass.drawRim(canvas, mGlassBounds, mCornerRadii,
                 getResources().getDisplayMetrics().density);
