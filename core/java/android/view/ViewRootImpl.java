@@ -1510,6 +1510,8 @@ public final class ViewRootImpl implements ViewParent,
      */
     // [PenguinOS] Liquid Glass tab bars for app windows (com.android.internal.penguin.glass).
     private com.android.internal.penguin.glass.LiquidTabBars mLiquidTabBars;
+    // [Miku-Picked UI] iOS 26 style Liquid Glass buttons in apps.
+    private com.android.internal.penguin.glass.LiquidButtons mLiquidButtons;
 
     public void setView(View view, WindowManager.LayoutParams attrs, View panelParentView,
             int userId) {
@@ -1520,6 +1522,8 @@ public final class ViewRootImpl implements ViewParent,
                         && attrs.type <= WindowManager.LayoutParams.LAST_APPLICATION_WINDOW) {
                     mLiquidTabBars =
                             com.android.internal.penguin.glass.LiquidTabBars.create(mContext);
+                    mLiquidButtons =
+                            com.android.internal.penguin.glass.LiquidButtons.create(mContext);
                 }
 
                 mViewLayoutDirectionInitial = mView.getRawLayoutDirection();
@@ -4301,6 +4305,9 @@ public final class ViewRootImpl implements ViewParent,
             performLayout(lp, mWidth, mHeight);
             if (mLiquidTabBars != null) {
                 mLiquidTabBars.onLayout(host);
+            }
+            if (mLiquidButtons != null) {
+                mLiquidButtons.onLayout(host);
             }
 
             // By this point all views have been sized and positioned
