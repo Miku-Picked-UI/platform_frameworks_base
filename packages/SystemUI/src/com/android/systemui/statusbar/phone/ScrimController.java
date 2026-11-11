@@ -271,6 +271,8 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener, Dump
     private final Interpolator mInterpolator = new DecelerateInterpolator();
 
     private float mInFrontAlpha = NOT_INITIALIZED;
+    // [PenguinOS] How much of the usual shade dim stays under Liquid Glass.
+    private static final float LIQUID_GLASS_DIM = 0.7f;
     private float mBehindAlpha = NOT_INITIALIZED;
     private float mNotificationsAlpha = NOT_INITIALIZED;
 
@@ -1089,6 +1091,14 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener, Dump
                                 mLargeScreenShadeInterpolator.getNotificationScrimAlpha(
                                         mPanelExpansionFraction);
                     }
+                }
+                // [PenguinOS] Under Liquid Glass the shade is one even, lighter dim over the
+                // glass backdrop: the notification panel's own scrim would stack a second,
+                // darker layer under the header and read as a gradient.
+                if (!mClipsQsScrim && !mTransparentScrimBackground
+                        && com.android.systemui.qs.shared.style.LiquidGlass.isEnabled(mContext)) {
+                    mNotificationsAlpha = 0;
+                    mBehindAlpha *= LIQUID_GLASS_DIM;
                 }
                 mBehindTint = mState.getBehindTint();
                 mInFrontAlpha = 0;

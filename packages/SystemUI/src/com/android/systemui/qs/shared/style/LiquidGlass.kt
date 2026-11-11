@@ -146,6 +146,12 @@ object LiquidGlass {
     fun lockscreenSurface(): Int = LiquidGlassTune.color("lockscreen_surface", 0x8C1C1C1E.toInt())
 
     private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+
+    // Miku-Picked UI: the glow and the lit (gradient) rim are off by default for a clean, even
+    // hairline edge; the debug.lg.* tuning properties can still bring them back.
+    private fun glowOn(): Boolean =
+        LiquidGlassTune.f("glow_tl", 0.0f) > 0f || LiquidGlassTune.f("glow_br", 0.0f) > 0f ||
+            LiquidGlassTune.f("glow_mid", 0.0f) > 0f
     private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var glowDensity = 0f
     private var glowRadiusDp = -1f
@@ -175,7 +181,7 @@ object LiquidGlass {
     ) {
         val w = kotlin.math.ceil(bounds.width()).toInt()
         val h = kotlin.math.ceil(bounds.height()).toInt()
-        if (w <= 0 || h <= 0) return
+        if (w <= 0 || h <= 0 || strength <= 0f || !glowOn()) return
         val key = GlowKey(w, h, shape, strength, density, LiquidGlassTune.tag)
         val glow =
             glowCache.get(key)
@@ -236,11 +242,11 @@ object LiquidGlass {
                 x1,
                 height.toFloat(),
                 intArrayOf(
-                    white(LiquidGlassTune.f("glow_tl", 0.1f)),
+                    white(LiquidGlassTune.f("glow_tl", 0.0f)),
                     white(LiquidGlassTune.f("glow_tl_mid", 0.0f)),
                     white(LiquidGlassTune.f("glow_mid", 0.0f)),
                     white(LiquidGlassTune.f("glow_br_mid", 0.0f)),
-                    white(LiquidGlassTune.f("glow_br", 0.06f)),
+                    white(LiquidGlassTune.f("glow_br", 0.0f)),
                 ),
                 floatArrayOf(0f, 0.3f, 0.5f, 0.7f, 1f),
                 Shader.TileMode.CLAMP,
@@ -258,6 +264,7 @@ object LiquidGlass {
         density: Float,
         strength: Float,
     ) {
+        if (strength <= 0f) return
         val glowRadius = LiquidGlassTune.f("glow_radius", 6.0f) * density
         val reach = kotlin.math.ceil(3f * (glowRadius * 0.57735f + 0.5f)).toInt() + 1
         val tl = radii[0].toInt()
@@ -286,11 +293,11 @@ object LiquidGlass {
                 x1,
                 rect.bottom,
                 intArrayOf(
-                    white(LiquidGlassTune.f("glow_tl", 0.1f)),
+                    white(LiquidGlassTune.f("glow_tl", 0.0f)),
                     white(LiquidGlassTune.f("glow_tl_mid", 0.0f)),
                     white(LiquidGlassTune.f("glow_mid", 0.0f)),
                     white(LiquidGlassTune.f("glow_br_mid", 0.0f)),
-                    white(LiquidGlassTune.f("glow_br", 0.06f)),
+                    white(LiquidGlassTune.f("glow_br", 0.0f)),
                 ),
                 floatArrayOf(0f, 0.3f, 0.5f, 0.7f, 1f),
                 Shader.TileMode.CLAMP,
@@ -375,11 +382,11 @@ object LiquidGlass {
             x1,
             bottom,
             intArrayOf(
-                white(LiquidGlassTune.f("rim_tl", 0.9f)),
-                white(LiquidGlassTune.f("rim_tl_mid", 0.06f)),
-                white(LiquidGlassTune.f("rim_mid", 0.02f)),
-                white(LiquidGlassTune.f("rim_br_mid", 0.04f)),
-                white(LiquidGlassTune.f("rim_br", 0.4f)),
+                white(LiquidGlassTune.f("rim_tl", 0.32f)),
+                white(LiquidGlassTune.f("rim_tl_mid", 0.32f)),
+                white(LiquidGlassTune.f("rim_mid", 0.32f)),
+                white(LiquidGlassTune.f("rim_br_mid", 0.32f)),
+                white(LiquidGlassTune.f("rim_br", 0.32f)),
             ),
             floatArrayOf(0f, 0.18f, 0.5f, 0.82f, 1f),
             Shader.TileMode.CLAMP,
@@ -396,8 +403,8 @@ object LiquidGlass {
         if (rect.isEmpty) return
         rimPath.reset()
         rimPath.addRoundRect(rect, radii, android.graphics.Path.Direction.CW)
-        drawRoundRectGlow(canvas, rect, radii, density, LiquidGlassTune.f("view_glow", 0.5f))
-        val dark = LiquidGlassTune.f("edge_dark", 0.35f)
+        drawRoundRectGlow(canvas, rect, radii, density, LiquidGlassTune.f("view_glow", 0.0f))
+        val dark = LiquidGlassTune.f("edge_dark", 0.0f)
         val hair = if (dark > 0f) LiquidGlassTune.f("edge_dark_width", 0.8f) * density else 0f
         if (dark > 0f) {
             rimRect.set(rect)
@@ -417,7 +424,7 @@ object LiquidGlass {
         rimPath.addRoundRect(rimRect, rimRadii, android.graphics.Path.Direction.CW)
         rimPaint.strokeWidth = width
         rimPaint.shader =
-            rimShader(rect.left, rect.top, rect.right, rect.bottom, LiquidGlassTune.f("view_rim", 0.3f))
+            rimShader(rect.left, rect.top, rect.right, rect.bottom, LiquidGlassTune.f("view_rim", 0.9f))
         drawRoundRectStroke(canvas, rimRect, rimRadii, rimPaint)
     }
 
@@ -582,7 +589,7 @@ private class GlassRim(
                 endY = size.height,
             )
         } else null
-    private val dark = LiquidGlassTune.f("edge_dark", 0.35f)
+    private val dark = LiquidGlassTune.f("edge_dark", 0.0f)
     private val hair = with(densityScope) { LiquidGlassTune.f("edge_dark_width", 0.8f).dp.toPx() }
     private val outerSize = Size(size.width - hair, size.height - hair)
     // Simple rounded rects and circles stroke as round rects, which Skia draws analytically.
