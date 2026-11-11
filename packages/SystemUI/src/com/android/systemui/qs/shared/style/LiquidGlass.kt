@@ -898,3 +898,14 @@ fun Modifier.glassBlurRegion(shape: Shape, material: Int = 0): Modifier {
 }
 
 private const val OVER_ART_FILL = 0.12f
+
+/**
+ * PenguinOS' Liquid Glass glyphs for tile specs. Miku-Picked UI: the glyphs come from the
+ * optional PenguinAssets package (see PenguinAssets); without it icons are left unchanged.
+ */
+object LiquidGlassGlyphs {
+    fun swap(spec: String, icon: com.android.systemui.common.shared.model.Icon) =
+        PenguinAssets.cachedGlyph(spec)
+            ?.let { com.android.systemui.common.shared.model.Icon.Loaded(it, icon.contentDescription) }
+            ?: icon
+}

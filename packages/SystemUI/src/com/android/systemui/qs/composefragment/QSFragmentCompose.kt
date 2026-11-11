@@ -52,6 +52,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -143,6 +144,7 @@ import com.android.systemui.qs.composefragment.ui.toEditMode
 import com.android.systemui.qs.composefragment.viewmodel.QSFragmentComposeViewModel
 import com.android.systemui.qs.flags.QSComposeFragment
 import com.android.systemui.qs.footer.ui.compose.FooterActions
+import com.android.systemui.qs.ui.composable.PenguinGridQuickSettings
 import com.android.systemui.qs.panels.shared.model.QSFragmentComposeClippingTableLog
 import com.android.systemui.qs.panels.ui.compose.EditMode
 import com.android.systemui.qs.panels.ui.compose.QuickQuickSettings
@@ -188,7 +190,15 @@ constructor(
     @Background private val backgroundDispatcher: CoroutineDispatcher,
     private val mediaLogger: MediaViewLogger,
     @ShadeDisplayAware private val configurationController: ConfigurationController,
+    // [PenguinOS] Quick Settings panel style (Settings.Secure qs_panel_style).
+    private val qsPanelStyleRepository:
+        com.android.systemui.qs.shared.style.QsPanelStyleRepository,
 ) : LifecycleFragment(), QS, Dumpable {
+
+    init {
+        com.android.systemui.qs.shared.style.PenguinQsStyle.repository = qsPanelStyleRepository
+    }
+
 
     private val scrollListener = MutableStateFlow<QS.ScrollListener?>(null)
     private val collapsedMediaVisibilityChangedListener =
@@ -944,17 +954,30 @@ constructor(
                                         end = qsHorizontalMargin(),
                                     )
                         ) {
-                            QuickSettingsLayout(
-                                brightness =
-                                    if (viewModel.isBrightnessSliderVisible) {
-                                        { BrightnessSlider() }
-                                    } else {
-                                        {}
-                                    },
-                                tiles = TileGrid,
-                                media = Media,
-                                mediaInRow = viewModel.qsMediaInRow,
-                            )
+                            // [PenguinOS] The Control Centre (PenguinOS' "Penguin" style) draws
+                            // the whole expanded panel; the stock layout otherwise.
+                            val panelStyle by qsPanelStyleRepository.style.collectAsState()
+                            if (panelStyle ==
+                                    com.android.systemui.qs.shared.style.QsPanelStyle.Penguin) {
+                                CompositionLocalProvider(
+                                    com.android.systemui.qs.shared.style.LocalQsPanelStyle
+                                        provides panelStyle
+                                ) {
+                                    PenguinGridQuickSettings(containerViewModel)
+                                }
+                            } else {
+                                QuickSettingsLayout(
+                                    brightness =
+                                        if (viewModel.isBrightnessSliderVisible) {
+                                            { BrightnessSlider() }
+                                        } else {
+                                            {}
+                                        },
+                                    tiles = TileGrid,
+                                    media = Media,
+                                    mediaInRow = viewModel.qsMediaInRow,
+                                )
+                            }
                         }
                     }
                 }
