@@ -5265,7 +5265,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final TelecomManager telecom = getTelecommService();
         if (telecom != null && (telecom.isRinging() || telecom.isInCall())) return false;
 
-        mVolumeSkipDown = event;
+        // A copy: the input pipeline reuses the event object it hands us, so a kept
+        // reference turns into the key up by the time the short press is replayed (the volume
+        // then never changed with the screen off).
+        mVolumeSkipDown = new KeyEvent(event);
         mVolumeSkipDone = false;
         if (mVolumeSkipWakeLock == null) {
             mVolumeSkipWakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
