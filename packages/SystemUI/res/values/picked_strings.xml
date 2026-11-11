@@ -47,4 +47,6 @@
     <string name="picked_now_bar_next">Next track</string>
     <string name="picked_now_bar_play">Play</string>
     <string name="picked_now_bar_pause">Pause</string>
+    <string name="picked_now_bar_open">Open the player</string>
+    <string name="picked_now_bar_collapse">Collapse</string>
 </resources>
