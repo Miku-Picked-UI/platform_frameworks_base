@@ -6908,6 +6908,13 @@ public final class Settings {
         public static final String NOW_BAR_ENABLED = "now_bar_enabled";
 
         /**
+         * Now Bar background: 0 = liquid glass (default), 1 = frosted glass, 2 = black.
+         * @hide
+         */
+        @Readable
+        public static final String NOW_BAR_STYLE = "now_bar_style";
+
+        /**
          * Skip tracks by holding volume up / down while music plays and the screen is off
          * (1 = on, default).
          * @hide

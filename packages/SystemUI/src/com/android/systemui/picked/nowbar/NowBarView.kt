@@ -5,9 +5,13 @@
 
 package com.android.systemui.picked.nowbar
 
+import android.app.Notification
+import android.app.PendingIntent
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Typeface
@@ -29,9 +33,13 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import android.view.ViewTreeObserver
+import android.widget.Chronometer
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -42,31 +50,52 @@ import com.android.systemui.Dependency
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.res.R
+import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.tuner.TunerService
+import kotlin.math.abs
 
 /**
- * Miku-Picked UI: Now Bar, a pill at the bottom of the lockscreen (in the style of Samsung's
- * One UI Now Bar) that shows what is playing with previous / play-pause / next buttons.
+ * Miku-Picked UI: Now Bar, a pill on the lockscreen in the style of Samsung's One UI Now Bar.
  *
- * Tapping the pill expands it in place into a large player (big album art, seek bar with
- * times, large controls), like One UI. In the large player, tapping the art or the song, or
- * the open button, opens the app's player (after unlocking); the arrow collapses it again.
+ * It has a page for each thing going on, and a horizontal swipe on the pill switches between
+ * them (dots show how many there are):
+ *  - media: what is playing, with previous / play-pause / next. Tapping it expands the pill in
+ *    place into a large player (big art, seek bar with times, large controls); there the art,
+ *    the song or the open button opens the app's player (after unlocking) and the arrow
+ *    collapses it again;
+ *  - the flashlight while it is on, with a button that turns it off;
+ *  - ongoing live notifications (timers, stopwatches, calls, navigation, recorders), with their
+ *    chronometer; tapping one opens it (after unlocking).
+ * A page that appears (music starts, flashlight turned on, timer started) is brought to front.
  *
- * It follows the active media sessions itself (SystemUI holds MEDIA_CONTENT_CONTROL), hides
- * while nothing is playing or paused, on AOD, and when Settings.System.NOW_BAR_ENABLED is 0.
+ * The background is liquid glass, frosted glass or black (Settings.System.NOW_BAR_STYLE, see
+ * [NowBarBackground]). The bar hides on AOD, while there is nothing to show, and when
+ * Settings.System.NOW_BAR_ENABLED is 0. Media sessions are followed directly (SystemUI holds
+ * MEDIA_CONTENT_CONTROL); the other activities come from [NowBarActivities].
  */
 class NowBarView(
     context: Context,
     private val activityStarter: ActivityStarter,
+    private val activities: NowBarActivities,
 ) : LinearLayout(context), TunerService.Tunable {
+
+    private sealed class Page {
+        object Media : Page()
+
+        object Flashlight : Page()
+
+        data class Ongoing(val key: String) : Page()
+    }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val sessionManager = context.getSystemService(MediaSessionManager::class.java)
     private val tunerService: TunerService = Dependency.get(TunerService::class.java)
     private val statusBarStateController: StatusBarStateController =
         Dependency.get(StatusBarStateController::class.java)
+    private val backgroundDrawer = NowBarBackground(this)
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
-    // Compact pill
+    // Compact media pill
     private val compactRow = LinearLayout(context)
     private val art = ImageView(context)
     private val title = TextView(context)
@@ -75,7 +104,7 @@ class NowBarView(
     private val playPause = ImageButton(context)
     private val next = ImageButton(context)
 
-    // Large player
+    // Large media player
     private val expandedPanel = LinearLayout(context)
     private val bigArt = ImageView(context)
     private val bigTitle = TextView(context)
@@ -88,6 +117,16 @@ class NowBarView(
     private val bigPrev = ImageButton(context)
     private val bigPlayPause = ImageButton(context)
     private val bigNext = ImageButton(context)
+
+    // Activity pill (flashlight / live notifications)
+    private val activityRow = LinearLayout(context)
+    private val activityIcon = ImageView(context)
+    private val activityTitle = TextView(context)
+    private val activityText = TextView(context)
+    private val activityChrono = Chronometer(context)
+    private val activityAction = ImageButton(context)
+
+    private val dots = LinearLayout(context)
 
     private var controller: MediaController? = null
 
@@ -105,6 +144,16 @@ class NowBarView(
     private var expanded = false
     private var userSeeking = false
 
+    private var pages: List<Page> = emptyList()
+    private var currentPage: Page? = null
+
+    private var downX = 0f
+    private var downY = 0f
+    private var swiping = false
+
+    private var cornerRadius = 0f
+    private var effectiveAlpha = -1f
+
     private val progressUpdater = object : Runnable {
         override fun run() {
             updateProgress()
@@ -114,10 +163,22 @@ class NowBarView(
         }
     }
 
+    /** Keeps the blur in step with the lockscreen fading (alpha set on a parent). */
+    private val preDrawListener = ViewTreeObserver.OnPreDrawListener {
+        val a = computeEffectiveAlpha()
+        if (a != effectiveAlpha) {
+            effectiveAlpha = a
+            invalidate()
+        }
+        true
+    }
+
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { sessions ->
             watchSessions(sessions ?: emptyList())
         }
+
+    private val activitiesListener = NowBarActivities.Listener { refresh() }
 
     private val stateListener = object : StatusBarStateController.StateListener {
         override fun onDozingChanged(isDozing: Boolean) {
@@ -131,17 +192,27 @@ class NowBarView(
         id = R.id.picked_now_bar
         orientation = VERTICAL
         visibility = GONE
-        background = GradientDrawable().apply {
-            cornerRadius = dp(32).toFloat()
-            setColor(Color.argb(0xB3, 0x16, 0x16, 0x1A))
-        }
+        setWillNotDraw(false)
+        cornerRadius = dp(32).toFloat()
 
         buildCompactRow()
         buildExpandedPanel()
+        buildActivityRow()
         expandedPanel.visibility = GONE
+        activityRow.visibility = GONE
+        dots.apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = GONE
+            setPadding(0, 0, 0, dp(6))
+        }
         addView(compactRow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(activityRow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(expandedPanel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(dots, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
+
+    // region Building
 
     private fun buildCompactRow() {
         compactRow.apply {
@@ -149,17 +220,7 @@ class NowBarView(
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
-
-        art.apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            clipToOutline = true
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) {
-                    outline.setOval(0, 0, view.width, view.height)
-                }
-            }
-            setBackgroundColor(Color.argb(0x40, 0xFF, 0xFF, 0xFF))
-        }
+        circleClip(art)
         compactRow.addView(art, LayoutParams(dp(44), dp(44)))
 
         val texts = LinearLayout(context).apply {
@@ -306,6 +367,66 @@ class NowBarView(
         expandedPanel.addView(controls, controlsLp)
     }
 
+    private fun buildActivityRow() {
+        activityRow.apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        activityIcon.apply {
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(dp(11), dp(11), dp(11), dp(11))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.argb(0x40, 0xFF, 0xFF, 0xFF))
+            }
+        }
+        activityRow.addView(activityIcon, LayoutParams(dp(44), dp(44)))
+
+        val texts = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(dp(12), 0, dp(4), 0)
+        }
+        styleTitle(activityTitle, 14f)
+        styleSubtitle(activityText, 12f)
+        activityChrono.setTextColor(Color.argb(0xB3, 0xFF, 0xFF, 0xFF))
+        activityChrono.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        activityChrono.fontFeatureSettings = "tnum"
+        texts.addView(activityTitle)
+        texts.addView(activityText)
+        texts.addView(activityChrono)
+        activityRow.addView(texts, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+
+        setupButton(activityRow, activityAction, R.drawable.picked_now_bar_power, 44) {
+            when (currentPage) {
+                Page.Flashlight -> activities.turnOffFlashlight()
+                else -> {}
+            }
+        }
+        activityAction.contentDescription =
+            context.getString(R.string.picked_now_bar_flashlight_off)
+
+        activityRow.setOnClickListener {
+            when (val page = currentPage) {
+                is Page.Ongoing -> ongoingEntry(page.key)?.sbn?.notification?.contentIntent
+                    ?.let { startIntent(it) }
+                Page.Flashlight -> activities.turnOffFlashlight()
+                else -> {}
+            }
+        }
+    }
+
+    private fun circleClip(view: ImageView) {
+        view.scaleType = ImageView.ScaleType.CENTER_CROP
+        view.clipToOutline = true
+        view.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setOval(0, 0, view.width, view.height)
+            }
+        }
+        view.setBackgroundColor(Color.argb(0x40, 0xFF, 0xFF, 0xFF))
+    }
+
     private fun styleTitle(view: TextView, sizeSp: Float) {
         view.setTextColor(Color.WHITE)
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
@@ -339,6 +460,10 @@ class NowBarView(
         parent.addView(button, LayoutParams(dp(sizeDp), dp(sizeDp)))
     }
 
+    // endregion
+
+    // region Actions
+
     private fun skipPrevious() {
         controller?.transportControls?.skipToPrevious()
     }
@@ -354,7 +479,10 @@ class NowBarView(
 
     /** Opens the app's player once the device is unlocked. */
     private fun openPlayer() {
-        val intent = controller?.sessionActivity ?: return
+        controller?.sessionActivity?.let { startIntent(it) }
+    }
+
+    private fun startIntent(intent: PendingIntent) {
         activityStarter.startPendingIntentDismissingKeyguard(intent)
     }
 
@@ -366,22 +494,94 @@ class NowBarView(
                 TransitionManager.beginDelayedTransition(it, AutoTransition().setDuration(250))
             }
         }
-        compactRow.visibility = if (value) GONE else VISIBLE
-        expandedPanel.visibility = if (value) VISIBLE else GONE
-        (background as? GradientDrawable)?.apply {
-            cornerRadius = dp(if (value) 28 else 32).toFloat()
-            setColor(if (value) Color.argb(0xD9, 0x16, 0x16, 0x1A)
-                else Color.argb(0xB3, 0x16, 0x16, 0x1A))
+        cornerRadius = dp(if (value) 28 else 32).toFloat()
+        invalidate()
+        refresh()
+    }
+
+    // endregion
+
+    // region Paging
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (expanded || pages.size < 2) return false
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = ev.x
+                downY = ev.y
+                swiping = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = ev.x - downX
+                val dy = ev.y - downY
+                if (abs(dx) > touchSlop && abs(dx) > abs(dy) * 1.5f) {
+                    swiping = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (!swiping) return super.onTouchEvent(ev)
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_MOVE -> {
+                translationX = (ev.x - downX) * 0.35f
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val dx = ev.x - downX
+                animate().translationX(0f).setDuration(180).start()
+                swiping = false
+                if (ev.actionMasked == MotionEvent.ACTION_UP && abs(dx) > dp(48)) {
+                    performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    switchPage(if (dx < 0) 1 else -1)
+                }
+            }
+        }
+        return true
+    }
+
+    private fun switchPage(step: Int) {
+        if (pages.size < 2) return
+        val index = currentPage?.let { pages.indexOf(it) }?.coerceAtLeast(0) ?: 0
+        currentPage = pages[(index + step + pages.size) % pages.size]
+        (parent as? ViewGroup)?.let {
+            TransitionManager.beginDelayedTransition(it, AutoTransition().setDuration(200))
         }
         refresh()
     }
 
+    private fun computePages(): List<Page> {
+        val list = ArrayList<Page>()
+        val c = controller
+        val state = c?.playbackState
+        val mediaShows = c != null && hasMedia(c) && state != null &&
+            state.state != PlaybackState.STATE_NONE &&
+            state.state != PlaybackState.STATE_STOPPED && state.state != PlaybackState.STATE_ERROR
+        if (mediaShows) list.add(Page.Media)
+        activities.ongoingEntries.forEach { list.add(Page.Ongoing(it.key)) }
+        if (activities.flashlightOn) list.add(Page.Flashlight)
+        return list
+    }
+
+    private fun ongoingEntry(key: String): NotificationEntry? =
+        activities.ongoingEntries.firstOrNull { it.key == key }
+
+    // endregion
+
+    // region Lifecycle
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         attached = true
-        tunerService.addTunable(this, NOW_BAR_KEY)
+        backgroundDrawer.onAttached()
+        viewTreeObserver.addOnPreDrawListener(preDrawListener)
+        tunerService.addTunable(this, NOW_BAR_KEY, NOW_BAR_STYLE_KEY)
         statusBarStateController.addCallback(stateListener)
         dozing = statusBarStateController.isDozing
+        activities.addListener(activitiesListener)
         try {
             sessionManager?.addOnActiveSessionsChangedListener(sessionsListener, null, mainHandler)
         } catch (e: SecurityException) {
@@ -393,20 +593,51 @@ class NowBarView(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         attached = false
+        viewTreeObserver.removeOnPreDrawListener(preDrawListener)
+        backgroundDrawer.onDetached()
         tunerService.removeTunable(this)
         statusBarStateController.removeCallback(stateListener)
+        activities.removeListener(activitiesListener)
         sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener)
         mainHandler.removeCallbacks(progressUpdater)
+        activityChrono.stop()
         setExpanded(false, animate = false)
         watchSessions(emptyList())
     }
 
     override fun onTuningChanged(key: String?, newValue: String?) {
-        if (key == NOW_BAR_KEY) {
-            nowBarEnabled = TunerService.parseIntegerSwitch(newValue, true)
-            refresh()
+        when (key) {
+            NOW_BAR_KEY -> {
+                nowBarEnabled = TunerService.parseIntegerSwitch(newValue, true)
+                refresh()
+            }
+            NOW_BAR_STYLE_KEY -> {
+                backgroundDrawer.setStyle(newValue?.toIntOrNull() ?: NowBarBackground.STYLE_LIQUID)
+            }
         }
     }
+
+    override fun onDraw(canvas: Canvas) {
+        if (effectiveAlpha < 0f) effectiveAlpha = computeEffectiveAlpha()
+        backgroundDrawer.draw(canvas, width, height, cornerRadius, effectiveAlpha)
+        super.onDraw(canvas)
+    }
+
+    /** This view's alpha times its parents' (0 when any of them is not visible). */
+    private fun computeEffectiveAlpha(): Float {
+        var a = 1f
+        var v: View? = this
+        while (v != null) {
+            if (v.visibility != VISIBLE) return 0f
+            a *= v.alpha
+            v = v.parent as? View
+        }
+        return a
+    }
+
+    // endregion
+
+    // region Media sessions
 
     private fun activeSessions(): List<MediaController> =
         try {
@@ -456,19 +687,78 @@ class NowBarView(
         refresh()
     }
 
+    // endregion
+
+    // region Drawing state
+
     private fun refresh() {
-        val c = controller
-        val metadata = c?.metadata
-        val state = c?.playbackState
-        val show = nowBarEnabled && !dozing && c != null && hasMedia(c) &&
-            state != null && state.state != PlaybackState.STATE_NONE &&
-            state.state != PlaybackState.STATE_STOPPED && state.state != PlaybackState.STATE_ERROR
-        if (!show) {
+        val newPages = computePages()
+        // A page that just appeared comes to front; otherwise keep the one being looked at.
+        val added = newPages.firstOrNull { it !in pages }
+        currentPage =
+            when {
+                added != null && pages.isNotEmpty() -> added
+                currentPage?.let { it in newPages } == true -> currentPage
+                else -> newPages.firstOrNull()
+            }
+        pages = newPages
+
+        val page = currentPage
+        if (!nowBarEnabled || dozing || page == null) {
             mainHandler.removeCallbacks(progressUpdater)
+            activityChrono.stop()
             if (expanded) setExpanded(false, animate = false)
             visibility = GONE
             return
         }
+        if (page != Page.Media && expanded) {
+            expanded = false
+            cornerRadius = dp(32).toFloat()
+        }
+
+        updateDots()
+        when (page) {
+            Page.Media -> bindMedia()
+            Page.Flashlight -> bindFlashlight()
+            is Page.Ongoing -> bindOngoing(page.key)
+        }
+        visibility = VISIBLE
+    }
+
+    private fun updateDots() {
+        if (pages.size < 2 || expanded) {
+            dots.visibility = GONE
+            return
+        }
+        dots.visibility = VISIBLE
+        while (dots.childCount < pages.size) {
+            val dot = View(context)
+            val lp = LayoutParams(dp(5), dp(5))
+            lp.setMargins(dp(3), 0, dp(3), 0)
+            dots.addView(dot, lp)
+        }
+        while (dots.childCount > pages.size) dots.removeViewAt(dots.childCount - 1)
+        val current = currentPage?.let { pages.indexOf(it) } ?: -1
+        for (i in 0 until dots.childCount) {
+            dots.getChildAt(i).background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (i == current) Color.WHITE else Color.argb(0x66, 0xFF, 0xFF, 0xFF))
+            }
+        }
+    }
+
+    private fun showRows(media: Boolean) {
+        activityRow.visibility = if (media) GONE else VISIBLE
+        compactRow.visibility = if (media && !expanded) VISIBLE else GONE
+        expandedPanel.visibility = if (media && expanded) VISIBLE else GONE
+        if (media) activityChrono.stop()
+    }
+
+    private fun bindMedia() {
+        showRows(media = true)
+        val c = controller ?: return
+        val metadata = c.metadata
+        val state = c.playbackState
 
         val titleText = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
             ?: metadata?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
@@ -490,7 +780,8 @@ class NowBarView(
         setArt(bigArt, bitmap, dp(24))
 
         val playing = isPlaying(state)
-        val playIcon = if (playing) R.drawable.picked_now_bar_pause else R.drawable.picked_now_bar_play
+        val playIcon =
+            if (playing) R.drawable.picked_now_bar_pause else R.drawable.picked_now_bar_play
         val playDesc = context.getString(
             if (playing) R.string.picked_now_bar_pause else R.string.picked_now_bar_play
         )
@@ -506,11 +797,70 @@ class NowBarView(
         listOf(next, bigNext).forEach { it.isEnabled = canNext; it.alpha = if (canNext) 1f else 0.4f }
         openButton.visibility = if (c.sessionActivity != null) VISIBLE else INVISIBLE
 
-        visibility = VISIBLE
-
         mainHandler.removeCallbacks(progressUpdater)
         if (expanded) progressUpdater.run()
     }
+
+    private fun bindFlashlight() {
+        showRows(media = false)
+        mainHandler.removeCallbacks(progressUpdater)
+        activityIcon.setImageResource(R.drawable.picked_now_bar_flashlight)
+        activityIcon.setColorFilter(Color.WHITE)
+        activityTitle.setText(R.string.picked_now_bar_flashlight)
+        activityText.setText(R.string.picked_now_bar_flashlight_on)
+        activityText.visibility = VISIBLE
+        activityChrono.stop()
+        activityChrono.visibility = GONE
+        activityAction.visibility = VISIBLE
+    }
+
+    private fun bindOngoing(key: String) {
+        showRows(media = false)
+        mainHandler.removeCallbacks(progressUpdater)
+        activityAction.visibility = GONE
+        val entry = ongoingEntry(key) ?: return
+        val sbn = entry.sbn
+        val n = sbn.notification
+        val isPrivate = n.visibility == Notification.VISIBILITY_PRIVATE
+        val extras = (if (isPrivate) n.publicVersion?.extras else null) ?: n.extras
+
+        val appLabel = appLabel(sbn.packageName)
+        val titleText = extras.getCharSequence(Notification.EXTRA_TITLE)
+            ?.takeIf { it.isNotBlank() } ?: appLabel
+        activityTitle.text = titleText
+
+        try {
+            val icon = n.smallIcon?.loadDrawable(context)
+            activityIcon.setImageDrawable(icon)
+        } catch (t: Throwable) {
+            activityIcon.setImageDrawable(null)
+        }
+        activityIcon.setColorFilter(Color.WHITE)
+
+        if (n.extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER) && n.`when` > 0) {
+            activityChrono.base =
+                SystemClock.elapsedRealtime() - (System.currentTimeMillis() - n.`when`)
+            activityChrono.isCountDown = n.extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN)
+            activityChrono.visibility = VISIBLE
+            activityChrono.start()
+            activityText.visibility = GONE
+        } else {
+            activityChrono.stop()
+            activityChrono.visibility = GONE
+            val text = if (isPrivate) appLabel
+                else extras.getCharSequence(Notification.EXTRA_TEXT)?.takeIf { it.isNotBlank() }
+            activityText.text = text
+            activityText.visibility = if (text.isNullOrEmpty() || text == titleText) GONE else VISIBLE
+        }
+    }
+
+    private fun appLabel(pkg: String): CharSequence =
+        try {
+            val pm = context.packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0))
+        } catch (e: PackageManager.NameNotFoundException) {
+            pkg
+        }
 
     private fun setArt(view: ImageView, bitmap: Bitmap?, iconPadding: Int) {
         if (bitmap != null) {
@@ -550,6 +900,8 @@ class NowBarView(
         durationText.text = formatTime(duration)
     }
 
+    // endregion
+
     private fun formatTime(ms: Long): String = DateUtils.formatElapsedTime(ms / 1000)
 
     private fun dp(value: Int): Int =
@@ -560,6 +912,7 @@ class NowBarView(
     companion object {
         private const val TAG = "NowBarView"
         private const val NOW_BAR_KEY = "system:" + Settings.System.NOW_BAR_ENABLED
+        private const val NOW_BAR_STYLE_KEY = "system:" + Settings.System.NOW_BAR_STYLE
         private const val PROGRESS_INTERVAL_MS = 500L
 
         private fun isPlaying(state: PlaybackState?): Boolean =

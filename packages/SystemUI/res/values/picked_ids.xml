@@ -9,4 +9,5 @@
     <item type="id" name="original_typeface" />
     <!-- Now Bar (lockscreen media pill) -->
     <item type="id" name="picked_now_bar" />
+    <item type="id" name="picked_now_bar_barrier" />
 </resources>

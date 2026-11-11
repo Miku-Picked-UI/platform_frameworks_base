@@ -49,4 +49,7 @@
     <string name="picked_now_bar_pause">Pause</string>
     <string name="picked_now_bar_open">Open the player</string>
     <string name="picked_now_bar_collapse">Collapse</string>
+    <string name="picked_now_bar_flashlight">Flashlight</string>
+    <string name="picked_now_bar_flashlight_on">On</string>
+    <string name="picked_now_bar_flashlight_off">Turn off the flashlight</string>
 </resources>
