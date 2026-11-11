@@ -12,6 +12,7 @@ import android.graphics.Outline
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaMetadata
 import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
@@ -62,23 +63,22 @@ class NowBarView(
     private val next = ImageButton(context)
 
     private var controller: MediaController? = null
+
+    /**
+     * Every active session, in the priority order MediaSessionManager reports, each with its
+     * own callback. A player often registers its session before it sets a playback state or
+     * metadata, so picking only when the session list changes would miss it; watching each
+     * session re-picks whenever any of them starts playing or loads a track.
+     */
+    private val watched =
+        LinkedHashMap<MediaSession.Token, Pair<MediaController, MediaController.Callback>>()
     private var nowBarEnabled = true
     private var dozing = false
     private var attached = false
 
-    private val controllerCallback = object : MediaController.Callback() {
-        override fun onPlaybackStateChanged(state: PlaybackState?) = refresh()
-
-        override fun onMetadataChanged(metadata: MediaMetadata?) = refresh()
-
-        override fun onSessionDestroyed() {
-            setController(pickController(activeSessions()))
-        }
-    }
-
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { sessions ->
-            setController(pickController(sessions ?: emptyList()))
+            watchSessions(sessions ?: emptyList())
         }
 
     private val stateListener = object : StatusBarStateController.StateListener {
@@ -179,7 +179,7 @@ class NowBarView(
         } catch (e: SecurityException) {
             Log.e(TAG, "No access to media sessions", e)
         }
-        setController(pickController(activeSessions()))
+        watchSessions(activeSessions())
     }
 
     override fun onDetachedFromWindow() {
@@ -188,7 +188,7 @@ class NowBarView(
         tunerService.removeTunable(this)
         statusBarStateController.removeCallback(stateListener)
         sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener)
-        setController(null)
+        watchSessions(emptyList())
     }
 
     override fun onTuningChanged(key: String?, newValue: String?) {
@@ -210,14 +210,39 @@ class NowBarView(
         sessions.firstOrNull { isPlaying(it.playbackState) }
             ?: sessions.firstOrNull { hasMedia(it) && it.playbackState?.state != PlaybackState.STATE_NONE }
 
-    private fun setController(newController: MediaController?) {
-        if (controller?.sessionToken == newController?.sessionToken && controller != null) {
-            refresh()
-            return
+    private fun watchSessions(sessions: List<MediaController>) {
+        val wanted = if (attached) sessions else emptyList()
+        val tokens = wanted.mapTo(HashSet()) { it.sessionToken }
+        val old = LinkedHashMap(watched)
+        watched.clear()
+        old.forEach { (token, entry) ->
+            if (token !in tokens) entry.first.unregisterCallback(entry.second)
         }
-        controller?.unregisterCallback(controllerCallback)
-        controller = if (attached) newController else null
-        controller?.registerCallback(controllerCallback, mainHandler)
+        for (c in wanted) {
+            val token = c.sessionToken
+            if (watched.containsKey(token)) continue
+            val entry = old[token] ?: Pair(c, sessionCallback(token).also {
+                c.registerCallback(it, mainHandler)
+            })
+            watched[token] = entry
+        }
+        update()
+    }
+
+    private fun sessionCallback(token: MediaSession.Token) = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) = update()
+
+        override fun onMetadataChanged(metadata: MediaMetadata?) = update()
+
+        override fun onSessionDestroyed() {
+            watched.remove(token)?.let { it.first.unregisterCallback(it.second) }
+            update()
+        }
+    }
+
+    /** Re-picks the session to show from the watched ones and redraws. */
+    private fun update() {
+        controller = pickController(watched.values.map { it.first })
         refresh()
     }
 

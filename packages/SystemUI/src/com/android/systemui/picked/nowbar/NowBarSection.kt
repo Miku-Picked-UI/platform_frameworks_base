@@ -47,6 +47,10 @@ constructor(
         val side = context.resources.getDimensionPixelSize(R.dimen.picked_now_bar_side_margin)
         val bottom = context.resources.getDimensionPixelSize(R.dimen.picked_now_bar_bottom_margin)
         constraintSet.apply {
+            // The bar shows and hides itself (NowBarView.refresh). Without this, every
+            // re-layout of the lockscreen (clock changes, blueprint transitions) re-applies the
+            // visibility cloned into the ConstraintSet and hides it again.
+            setVisibilityMode(R.id.picked_now_bar, ConstraintSet.VISIBILITY_MODE_IGNORE)
             constrainWidth(R.id.picked_now_bar, ConstraintSet.MATCH_CONSTRAINT)
             constrainHeight(R.id.picked_now_bar, ConstraintSet.WRAP_CONTENT)
             constrainMaxWidth(R.id.picked_now_bar,
