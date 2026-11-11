@@ -9,9 +9,13 @@ import android.graphics.Canvas
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.view.MotionEvent
 import android.view.View
-import android.view.animation.OvershootInterpolator
-import android.view.animation.PathInterpolator
+import androidx.dynamicanimation.animation.FloatValueHolder
+import androidx.dynamicanimation.animation.SpringAnimation
+import androidx.dynamicanimation.animation.SpringForce
+import kotlin.math.abs
+import kotlin.math.hypot
 import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 import com.android.systemui.qs.shared.style.LiquidGlass
 
@@ -22,8 +26,10 @@ import com.android.systemui.qs.shared.style.LiquidGlass
  *
  * While system-wide Liquid Glass is on, a key draws a blur region the size of its round
  * background (SurfaceFlinger's renderengine turns it into a glass slab), its fill becomes a light
- * glass tint (see NumPadAnimator), PenguinOS' lit rim goes on top, and pressing lifts the key
- * with a spring instead of only morphing it.
+ * glass tint (see NumPadAnimator), PenguinOS' lit rim goes on top, and the key responds to the
+ * finger like PenguinOS' glass press: it lifts (grows a little) on a spring, leans toward where
+ * the finger drags with rubber-band resistance, stretches along the drag and narrows across it,
+ * and wobbles back into place on a soft spring when let go.
  */
 class PinKeyGlass(private val view: View) {
 
@@ -70,21 +76,91 @@ class PinKeyGlass(private val view: View) {
         LiquidGlass.drawRim(canvas, rect, radii, view.resources.displayMetrics.density)
     }
 
-    /** The press lift: up and a little larger on down, springing back on release. */
-    fun onPress(down: Boolean) {
-        if (!enabled) return
-        view.animate().cancel()
-        view.animate()
-            .scaleX(if (down) PRESS_SCALE else 1f)
-            .scaleY(if (down) PRESS_SCALE else 1f)
-            .setDuration(if (down) 120 else 420)
-            .setInterpolator(if (down) PRESS_IN else OvershootInterpolator(2.6f))
-            .start()
+    // PenguinOS' glass press, for views: lift 0..1 and the lean offset in px.
+    private val lift = FloatValueHolder(0f)
+    private val leanX = FloatValueHolder(0f)
+    private val leanY = FloatValueHolder(0f)
+    private val liftSpring = spring(lift)
+    private val leanXSpring = spring(leanX)
+    private val leanYSpring = spring(leanY)
+    private var downX = 0f
+    private var downY = 0f
+    private var pressing = false
+
+    private fun spring(holder: FloatValueHolder) =
+        SpringAnimation(holder).apply {
+            spring = SpringForce(0f)
+            setMinimumVisibleChange(SpringAnimation.MIN_VISIBLE_CHANGE_SCALE)
+            addUpdateListener { _, _, _ -> applyPress() }
+        }
+
+    /** Follows the finger: call from the key's onTouchEvent with every event. */
+    fun onTouch(event: MotionEvent) {
+        if (!enabled) {
+            if (pressing) release()
+            return
+        }
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pressing = true
+                downX = event.rawX
+                downY = event.rawY
+                animate(liftSpring, 1f, PRESS_DAMPING, PRESS_STIFFNESS)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (!pressing) return
+                val dx = event.rawX - downX
+                val dy = event.rawY - downY
+                val reach = REACH_DP * view.resources.displayMetrics.density
+                val dist = hypot(dx, dy)
+                // Rubber band: follows the finger at first, then less and less, up to the reach.
+                val pull = if (dist == 0f) 0f else reach * (1f - 1f / (1f + dist / (reach * 3f))) / dist
+                leanXSpring.cancel()
+                leanYSpring.cancel()
+                leanX.value = dx * pull
+                leanY.value = dy * pull
+                applyPress()
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> release()
+        }
+    }
+
+    private fun release() {
+        pressing = false
+        animate(liftSpring, 0f, RELEASE_DAMPING, RELEASE_STIFFNESS)
+        animate(leanXSpring, 0f, RELEASE_DAMPING, RELEASE_STIFFNESS)
+        animate(leanYSpring, 0f, RELEASE_DAMPING, RELEASE_STIFFNESS)
+    }
+
+    private fun animate(anim: SpringAnimation, target: Float, damping: Float, stiffness: Float) {
+        anim.spring.setDampingRatio(damping).setStiffness(stiffness)
+        anim.animateToFinalPosition(target)
+    }
+
+    private fun applyPress() {
+        val reach = REACH_DP * view.resources.displayMetrics.density
+        val l = lift.value
+        val ox = leanX.value
+        val oy = leanY.value
+        val stretchX = abs(ox) / reach * STRETCH
+        val stretchY = abs(oy) / reach * STRETCH
+        view.scaleX = 1f + LIFT_SCALE * l + stretchX - stretchY * 0.5f
+        view.scaleY = 1f + LIFT_SCALE * l + stretchY - stretchX * 0.5f
+        view.translationX = ox
+        view.translationY = oy
     }
 
     fun onDetached() {
         blur?.setVisible(false, false)
         blur = null
+        liftSpring.cancel()
+        leanXSpring.cancel()
+        leanYSpring.cancel()
+        lift.value = 0f
+        leanX.value = 0f
+        leanY.value = 0f
+        pressing = false
+        applyPress()
     }
 
     private fun cornerOf(background: Drawable, height: Int): Float =
@@ -93,7 +169,15 @@ class PinKeyGlass(private val view: View) {
 
     companion object {
         private const val BLUR_RADIUS = 90
-        private const val PRESS_SCALE = 1.06f
-        private val PRESS_IN = PathInterpolator(0.2f, 0f, 0f, 1f)
+
+        // PenguinOS' glass press (LiquidGlass.kt): 6 % lift, 10 dp lean reach, 3.5 % stretch,
+        // PressSpring (0.62, 520) and releaseSpring (0.38, StiffnessMediumLow).
+        private const val LIFT_SCALE = 0.06f
+        private const val REACH_DP = 10f
+        private const val STRETCH = 0.035f
+        private const val PRESS_DAMPING = 0.62f
+        private const val PRESS_STIFFNESS = 520f
+        private const val RELEASE_DAMPING = 0.38f
+        private const val RELEASE_STIFFNESS = SpringForce.STIFFNESS_MEDIUM_LOW
     }
 }

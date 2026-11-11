@@ -104,15 +104,14 @@ public class NumPadButton extends AlphaOptimizedImageButton implements NumPadAni
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        mGlass.onTouch(event);
         switch(event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 if (mAnimator != null) mAnimator.expand();
-                mGlass.onPress(true);
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 if (mAnimator != null) mAnimator.contract();
-                mGlass.onPress(false);
                 break;
         }
         return super.onTouchEvent(event);
