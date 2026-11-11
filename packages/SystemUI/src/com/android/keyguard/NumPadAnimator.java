@@ -60,6 +60,8 @@ class NumPadAnimator {
     private float mEndRadius;
 
     private static final int GLASS_FILL = 0x3DFFFFFF;
+    // [PenguinOS] Glass keys stay round when pressed; the glass press (PinKeyGlass) moves them.
+    private boolean mGlass;
     private static final int GLASS_FILL_PRESSED = 0x73FFFFFF;
     private int mHeight;
     private int mWidth;
@@ -108,7 +110,7 @@ class NumPadAnimator {
         mWidth = width;
         mHeight = height;
         mStartRadius = height / 2f;
-        mEndRadius = height / 4f;
+        mEndRadius = mGlass ? mStartRadius : height / 4f;
         mExpandAnimator.setFloatValues(mStartRadius, mEndRadius);
         mContractAnimator.setFloatValues(mEndRadius, mStartRadius);
         // Set initial corner radius.
@@ -144,7 +146,8 @@ class NumPadAnimator {
 
         // [PenguinOS] Liquid Glass PIN keys: a light glass tint over the blurred backdrop
         // (PinKeyGlass), brighter while pressed, with white digits.
-        if (com.android.systemui.qs.shared.style.LiquidGlass.isEnabled(context)) {
+        mGlass = com.android.systemui.qs.shared.style.LiquidGlass.isEnabled(context);
+        if (mGlass) {
             mNormalBackgroundColor = GLASS_FILL;
             mPressedBackgroundColor = GLASS_FILL_PRESSED;
             mTextColorPrimary = android.graphics.Color.WHITE;
