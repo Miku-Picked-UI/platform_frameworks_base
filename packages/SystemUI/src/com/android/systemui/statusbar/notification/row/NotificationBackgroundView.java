@@ -37,7 +37,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.internal.util.ContrastColorUtil;
+import com.android.internal.graphics.drawable.BackgroundBlurDrawable;
 import com.android.systemui.Dumpable;
+import com.android.systemui.qs.shared.style.LiquidGlass;
 import com.android.systemui.common.shared.colors.SurfaceEffectColors;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.notification.shared.NotificationAddXOnHoverToDismiss;
@@ -76,6 +78,12 @@ public class NotificationBackgroundView extends View implements Dumpable,
     private int mNormalColor;
     private final int convexR = 9;
     private final int concaveR = 22;
+
+    // [PenguinOS] Liquid Glass: a glass backdrop below the card (SurfaceFlinger draws the blur
+    // region as glass), a light glass tint and a lit rim on top.
+    private BackgroundBlurDrawable mGlassBlur;
+    private final android.graphics.RectF mGlassBounds = new android.graphics.RectF();
+    private static final int GLASS_BLUR_RADIUS = 90;
 
     // True only if the dismiss button is visible.
     private boolean mDrawDismissButtonCutout = false;
@@ -136,7 +144,9 @@ public class NotificationBackgroundView extends View implements Dumpable,
 
             if (mBackground != null) {
                 mBackground.setBounds(backgroundBounds);
+                drawGlassBehind(canvas, backgroundBounds);
                 mBackground.draw(canvas);
+                drawGlassRim(canvas, backgroundBounds);
             }
 
             canvas.restore();
@@ -230,7 +240,49 @@ public class NotificationBackgroundView extends View implements Dumpable,
                 right = (int) (left + actualWidth);
             }
             drawable.setBounds(left, top, right, bottom);
+            drawGlassBehind(canvas, drawable.getBounds());
             drawable.draw(canvas);
+            drawGlassRim(canvas, drawable.getBounds());
+        }
+    }
+
+    private boolean glassOn() {
+        return LiquidGlass.isEnabled(getContext());
+    }
+
+    private void drawGlassBehind(Canvas canvas, Rect bounds) {
+        if (!glassOn() || bounds == null || bounds.isEmpty() || mDrawableAlpha == 0) {
+            if (mGlassBlur != null) mGlassBlur.setVisible(false, false);
+            return;
+        }
+        if (mGlassBlur == null) {
+            if (getViewRootImpl() == null) return;
+            mGlassBlur = getViewRootImpl().createBackgroundBlurDrawable();
+            mGlassBlur.setXfermode(null);
+            mGlassBlur.setColor(0);
+        }
+        mGlassBlur.setVisible(true, false);
+        mGlassBlur.setBlurRadius(GLASS_BLUR_RADIUS);
+        mGlassBlur.setCornerRadius(mCornerRadii[0], mCornerRadii[2], mCornerRadii[6],
+                mCornerRadii[4]);
+        mGlassBlur.setAlpha(mDrawableAlpha);
+        mGlassBlur.setBounds(bounds.left, bounds.top, bounds.right, bounds.bottom);
+        mGlassBlur.draw(canvas);
+    }
+
+    private void drawGlassRim(Canvas canvas, Rect bounds) {
+        if (!glassOn() || bounds == null || bounds.isEmpty()) return;
+        mGlassBounds.set(bounds);
+        LiquidGlass.drawRim(canvas, mGlassBounds, mCornerRadii,
+                getResources().getDisplayMetrics().density);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (mGlassBlur != null) {
+            mGlassBlur.setVisible(false, false);
+            mGlassBlur = null;
         }
     }
 
@@ -301,7 +353,14 @@ public class NotificationBackgroundView extends View implements Dumpable,
 
     public void setTint(int tintColor) {
         Drawable baseLayer = getBaseBackgroundLayer();
-        if (notificationRowTransparency()) {
+        // [PenguinOS] Under Liquid Glass the default surface is a light glass tint; colored
+        // notifications keep their color.
+        final int drawColor = tintColor == mNormalColor && glassOn()
+                ? LiquidGlass.viewSurface() : tintColor;
+        if (drawColor != tintColor && baseLayer instanceof GradientDrawable) {
+            baseLayer.mutate().setTintList(null);
+            ((GradientDrawable) baseLayer.mutate()).setColor(drawColor);
+        } else if (notificationRowTransparency()) {
             ((GradientDrawable) baseLayer.mutate()).setColor(tintColor);
 
         } else {

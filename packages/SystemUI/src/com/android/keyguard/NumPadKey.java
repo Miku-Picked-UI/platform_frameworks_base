@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.Typeface;
+import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.PowerManager;
@@ -60,6 +61,7 @@ public class NumPadKey extends ViewGroup implements NumPadAnimationListener {
 
     @Nullable
     private NumPadAnimator mAnimator;
+    private final PinKeyGlass mGlass = new PinKeyGlass(this);
     private int mOrientation;
     @Nullable
     private BouncerHapticPlayer mBouncerHapticPlayer;
@@ -161,7 +163,8 @@ public class NumPadKey extends ViewGroup implements NumPadAnimationListener {
      * Reload colors from resources.
      **/
     public void reloadColors() {
-        int textColor = getContext().getColor(Color.digit);
+        int textColor = mGlass.getEnabled()
+                ? android.graphics.Color.WHITE : getContext().getColor(Color.digit);
         int klondikeColor = Utils.getColorAttr(getContext(), android.R.attr.textColorSecondary)
                 .getDefaultColor();
         mDigitText.setTextColor(textColor);
@@ -171,15 +174,31 @@ public class NumPadKey extends ViewGroup implements NumPadAnimationListener {
     }
 
     @Override
+    public void draw(Canvas canvas) {
+        // [PenguinOS] Liquid Glass: the glass backdrop below the key, its rim above.
+        mGlass.drawBehind(canvas, getBackground());
+        super.draw(canvas);
+        mGlass.drawRim(canvas, getBackground());
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        mGlass.onDetached();
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent event) {
         switch(event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 doHapticKeyClick();
                 if (mAnimator != null && mAnimationsEnabled) mAnimator.expand();
+                mGlass.onPress(true);
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 if (mAnimator != null && mAnimationsEnabled) mAnimator.contract();
+                mGlass.onPress(false);
                 break;
         }
         return super.onTouchEvent(event);

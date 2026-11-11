@@ -29,6 +29,7 @@ import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
+import android.graphics.Xfermode;
 import android.graphics.Rect;
 import android.graphics.RenderNode;
 import android.graphics.drawable.Drawable;
@@ -198,6 +199,17 @@ public final class BackgroundBlurDrawable extends Drawable {
         Rect bounds = getBounds();
         mRectPath.addRoundRect(bounds.left, bounds.top, bounds.right, bounds.bottom, mTmpRadii,
                 Path.Direction.CW);
+    }
+
+    /**
+     * Set the {@link Xfermode} the blur region is cut out of the window with. By default the
+     * region is cleared (SRC) so the blur shows through; {@code null} draws it src-over instead,
+     * keeping what this window drew below it (backported from Android 17 for Liquid Glass).
+     */
+    @Override
+    public void setXfermode(@Nullable Xfermode xfermode) {
+        mPaint.setXfermode(xfermode);
+        invalidateSelf();
     }
 
     @Override

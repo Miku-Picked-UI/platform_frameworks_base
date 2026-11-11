@@ -58,6 +58,9 @@ class NumPadAnimator {
     private int mStyle;
     private float mStartRadius;
     private float mEndRadius;
+
+    private static final int GLASS_FILL = 0x3DFFFFFF;
+    private static final int GLASS_FILL_PRESSED = 0x73FFFFFF;
     private int mHeight;
     private int mWidth;
 
@@ -138,6 +141,16 @@ class NumPadAnimator {
 
         mBackground.setColor(mNormalBackgroundColor);
         mTextColorPrimary = context.getColor(isNumPadKey ? Color.digit : Color.action);
+
+        // [PenguinOS] Liquid Glass PIN keys: a light glass tint over the blurred backdrop
+        // (PinKeyGlass), brighter while pressed, with white digits.
+        if (com.android.systemui.qs.shared.style.LiquidGlass.isEnabled(context)) {
+            mNormalBackgroundColor = GLASS_FILL;
+            mPressedBackgroundColor = GLASS_FILL_PRESSED;
+            mTextColorPrimary = android.graphics.Color.WHITE;
+            mTextColorPressed = android.graphics.Color.WHITE;
+            mBackground.setColor(mNormalBackgroundColor);
+        }
         createAnimators();
     }
 

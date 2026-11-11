@@ -18,6 +18,13 @@
 
 package com.android.systemui.qs.panels.ui.compose.infinitegrid
 
+import com.android.systemui.qs.shared.style.LiquidGlassControl
+import com.android.systemui.qs.shared.style.LiquidGlassSurface
+import com.android.systemui.qs.shared.style.glassBlurRegion
+import com.android.systemui.qs.shared.style.liquidGlassEnabled
+import com.android.systemui.qs.shared.style.liquidGlassOn
+import com.android.systemui.qs.shared.style.liquidGlassPress
+import com.android.systemui.qs.shared.style.liquidGlassRim
 import android.content.Context
 import android.content.res.Resources
 import android.os.Trace
@@ -358,12 +365,21 @@ private fun TileExpandable(
     modifier: Modifier = Modifier,
     content: @Composable (Expandable) -> Unit,
 ) {
+    // [PenguinOS] Liquid Glass tiles: the tile springs under the finger and SurfaceFlinger
+    // draws its backdrop as a glass slab, with a lit rim on top.
+    val glass = liquidGlassEnabled()
     Expandable(
         controller = rememberExpandableController(color = color, shape = shape),
-        modifier = modifier.clip(shape).verticalSquish(squishiness),
+        modifier = modifier.liquidGlassPress(glass).clip(shape).verticalSquish(squishiness),
         useModifierBasedImplementation = true,
     ) {
-        content(hapticsViewModel?.createStateAwareExpandable(it) ?: it)
+        if (glass) {
+            Box(Modifier.glassBlurRegion(shape).liquidGlassRim(shape)) {
+                content(hapticsViewModel?.createStateAwareExpandable(it) ?: it)
+            }
+        } else {
+            content(hapticsViewModel?.createStateAwareExpandable(it) ?: it)
+        }
     }
 }
 
@@ -485,6 +501,11 @@ private object TileDefaults {
     val ActiveIconCornerRadius = 16.dp
     val ActiveTileCornerRadius = 24.dp
 
+    /** [PenguinOS] Under Liquid Glass, inactive surfaces are a light glass tint. */
+    @Composable
+    @ReadOnlyComposable
+    private fun glassOr(color: Color): Color = if (liquidGlassOn) LiquidGlassSurface else color
+
     /** An active tile uses the active color as background */
     @Composable
     @ReadOnlyComposable
@@ -502,7 +523,7 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun activeDualTargetTileColors(): TileColors =
         TileColors(
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
+            background = glassOr(LocalAndroidColorScheme.current.surfaceEffect1),
             iconBackground = MaterialTheme.colorScheme.primary,
             label = MaterialTheme.colorScheme.onSurface,
             secondaryLabel = MaterialTheme.colorScheme.onSurface,
@@ -513,8 +534,10 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun inactiveDualTargetTileColors(): TileColors =
         TileColors(
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
-            iconBackground = LocalAndroidColorScheme.current.surfaceEffect2,
+            background = glassOr(LocalAndroidColorScheme.current.surfaceEffect1),
+            iconBackground =
+                if (liquidGlassOn) LiquidGlassControl
+                else LocalAndroidColorScheme.current.surfaceEffect2,
             label = MaterialTheme.colorScheme.onSurface,
             secondaryLabel = MaterialTheme.colorScheme.onSurface,
             icon = MaterialTheme.colorScheme.onSurface,
@@ -524,7 +547,7 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun inactiveTileColors(): TileColors =
         TileColors(
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
+            background = glassOr(LocalAndroidColorScheme.current.surfaceEffect1),
             iconBackground = Color.Transparent,
             label = MaterialTheme.colorScheme.onSurface,
             secondaryLabel = MaterialTheme.colorScheme.onSurface,

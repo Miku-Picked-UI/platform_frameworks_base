@@ -18,6 +18,7 @@ package com.android.keyguard;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
+import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.VectorDrawable;
@@ -40,6 +41,7 @@ public class NumPadButton extends AlphaOptimizedImageButton implements NumPadAni
 
     @Nullable
     private NumPadAnimator mAnimator;
+    private final PinKeyGlass mGlass = new PinKeyGlass(this);
     private int mOrientation;
     private int mStyleAttr;
     private boolean mIsTransparentMode;
@@ -87,14 +89,30 @@ public class NumPadButton extends AlphaOptimizedImageButton implements NumPadAni
     }
 
     @Override
+    public void draw(Canvas canvas) {
+        // [PenguinOS] Liquid Glass: the glass backdrop below the key, its rim above.
+        mGlass.drawBehind(canvas, getBackground());
+        super.draw(canvas);
+        mGlass.drawRim(canvas, getBackground());
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        mGlass.onDetached();
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent event) {
         switch(event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 if (mAnimator != null) mAnimator.expand();
+                mGlass.onPress(true);
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 if (mAnimator != null) mAnimator.contract();
+                mGlass.onPress(false);
                 break;
         }
         return super.onTouchEvent(event);
