@@ -6,6 +6,8 @@
 package com.android.systemui.picked.nowbar
 
 import android.app.Notification
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
@@ -20,8 +22,9 @@ import javax.inject.Inject
  * navigation, recorders: ongoing notifications that run a chronometer, use the call /
  * stopwatch / navigation category, or are promoted ongoing).
  *
- * One instance for SystemUI; the Now Bar view subscribes while it is attached. All calls happen
- * on the main thread (both sources call back there).
+ * One instance for SystemUI; the Now Bar view subscribes while it is attached. Listeners are
+ * always called on the main thread: the flashlight reports changes on SystemUI's background
+ * thread, so those are posted over first.
  */
 @SysUISingleton
 class NowBarActivities
@@ -34,6 +37,7 @@ constructor(
         fun onActivitiesChanged()
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val listeners = LinkedHashSet<Listener>()
     private var started = false
 
@@ -48,9 +52,11 @@ constructor(
 
     private val flashlightListener = object : FlashlightController.FlashlightListener {
         override fun onFlashlightChanged(enabled: Boolean) {
-            if (flashlightOn != enabled) {
-                flashlightOn = enabled
-                dispatch()
+            mainHandler.post {
+                if (flashlightOn != enabled) {
+                    flashlightOn = enabled
+                    dispatch()
+                }
             }
         }
 

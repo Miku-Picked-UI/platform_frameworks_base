@@ -21,9 +21,9 @@ import javax.inject.Inject
 /**
  * Miku-Picked UI: puts the [NowBarView] on the lockscreen, placed by where the fingerprint
  * sensor is, so it never covers it:
- *  - under-display sensor in the lower part of the screen: right above the fingerprint icon;
- *  - under-display sensor higher up (around the middle): at the bottom of the screen, above the
- *    indication text;
+ *  - under-display sensor at the very bottom of the screen: right above the fingerprint icon;
+ *  - under-display sensor higher up (lower middle, like the Galaxy S21 at ~76%): at the bottom
+ *    of the screen, above the indication text;
  *  - no under-display sensor: at the bottom, above the indication text and the lock icon.
  * The lockscreen notifications end above it while it shows (see
  * NotificationStackScrollLayoutSection).
@@ -163,6 +163,6 @@ constructor(
 
     private companion object {
         /** A sensor centred below this fraction of the screen height counts as "at the bottom". */
-        const val LOWER_SENSOR_FRACTION = 0.7f
+        const val LOWER_SENSOR_FRACTION = 0.85f
     }
 }
