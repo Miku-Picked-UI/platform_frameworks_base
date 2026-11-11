@@ -178,6 +178,6 @@ class PinKeyGlass(private val view: View) {
         private const val PRESS_DAMPING = 0.62f
         private const val PRESS_STIFFNESS = 520f
         private const val RELEASE_DAMPING = 0.38f
-        private const val RELEASE_STIFFNESS = SpringForce.STIFFNESS_MEDIUM_LOW
+        private const val RELEASE_STIFFNESS = 400f // Compose Spring.StiffnessMediumLow
     }
 }
