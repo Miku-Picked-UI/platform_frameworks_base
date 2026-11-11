@@ -109,6 +109,16 @@ class NowBarBackground(private val view: View) {
         }
 
         val liquid = currentStyle == STYLE_LIQUID
+        // Created when first drawn too: at attach time the view may not have its
+        // ViewRootImpl yet, and the bar then showed without any glass.
+        if (blur == null) {
+            blur =
+                try {
+                    view.viewRootImpl?.createBackgroundBlurDrawable()
+                } catch (t: Throwable) {
+                    null
+                }
+        }
         val b = blur
         val blurring = b != null && blurEnabled
         if (blurring) {

@@ -883,7 +883,16 @@ fun Modifier.glassBlurRegion(shape: Shape, material: Int = 0): Modifier {
                         }
                 blur.setVisible(true, false)
                 blur.setColor(0)
-                blur.setBlurRadius(radius)
+                // Miku-Picked UI: the shade's own radius while it blurs, so SurfaceFlinger reuses
+                // that blur pass instead of blurring the screen again for every glass tile.
+                val regionRadius =
+                    if (material == 0) com.android.systemui.statusbar.ShadeBlur.glassRegionRadius(radius)
+                    else radius
+                if (regionRadius <= 0) {
+                    blur.setVisible(false, false)
+                    return@onDrawBehind
+                }
+                blur.setBlurRadius(regionRadius)
                 blur.setCornerRadius(minOf(corner, shown.height / 2f))
                 blur.setAlpha((alpha * 255).toInt())
                 blur.setBounds(

@@ -141,6 +141,9 @@ constructor(
         if (viewRootImpl == null || !viewRootImpl.surfaceControl.isValid) {
             return
         }
+        // Miku-Picked UI: the user's blur strength (Settings > Picked features).
+        @Suppress("NAME_SHADOWING") val radius = ShadeBlur.scaled(radius)
+        ShadeBlur.onApplied(radius)
         updateTransactionApplier(viewRootImpl)
         val builder =
             SyncRtSurfaceTransactionApplier.SurfaceParams.Builder(viewRootImpl.surfaceControl)

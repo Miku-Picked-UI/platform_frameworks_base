@@ -262,7 +262,14 @@ public class NotificationBackgroundView extends View implements Dumpable,
             mGlassBlur.setColor(0);
         }
         mGlassBlur.setVisible(true, false);
-        mGlassBlur.setBlurRadius(GLASS_BLUR_RADIUS);
+        // The shade's own radius while it blurs, so SurfaceFlinger reuses that blur pass.
+        final int glassRadius =
+                com.android.systemui.statusbar.ShadeBlur.glassRegionRadius(GLASS_BLUR_RADIUS);
+        if (glassRadius <= 0) {
+            mGlassBlur.setVisible(false, false);
+            return;
+        }
+        mGlassBlur.setBlurRadius(glassRadius);
         mGlassBlur.setCornerRadius(mCornerRadii[0], mCornerRadii[2], mCornerRadii[6],
                 mCornerRadii[4]);
         mGlassBlur.setAlpha(mDrawableAlpha);
