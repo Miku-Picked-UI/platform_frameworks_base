@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -423,7 +424,14 @@ private fun ContentScope.PenguinGridPages(
                 .thenIf(wideFit != null) { Modifier.onSizeChanged { wideFit?.bodyPx = it.height } }
                 .sysuiResTag("quick_settings_panel")
     ) {
-        Box(Modifier.fillMaxWidth().then(if (settled) Modifier.animateContentSize() else Modifier)) {
+        // animateContentSize clips to its bounds; the press room around the pages has to be
+        // inside them, without taking space in the layout.
+        Box(
+            Modifier.fillMaxWidth()
+                .overflowVertically(PressRoom)
+                .then(if (settled) Modifier.animateContentSize() else Modifier)
+                .padding(vertical = PressRoom)
+        ) {
         val panelBlurAlpha = LocalGlassBlurAlpha.current
         val gridBlurAlpha =
             remember(panelBlurAlpha) { { panelBlurAlpha() * (1f - progress.value) } }
@@ -627,6 +635,26 @@ internal fun PenguinGridTheme(content: @Composable () -> Unit) {
 
 /** Room above and below the grid pages for the glass press to lift and stretch tiles into. */
 private val PressRoom = 14.dp
+
+/**
+ * Lets a node take [room] more space above and below than its parent sees: it is measured and
+ * drawn [room] larger on each side, but laid out (and placed) at its inner size.
+ */
+private fun Modifier.overflowVertically(room: Dp): Modifier =
+    layout { measurable, constraints ->
+        val r = room.roundToPx()
+        val inner =
+            constraints.copy(
+                minHeight = constraints.minHeight + 2 * r,
+                maxHeight =
+                    if (constraints.hasBoundedHeight) constraints.maxHeight + 2 * r
+                    else constraints.maxHeight,
+            )
+        val placeable = measurable.measure(inner)
+        layout(placeable.width, (placeable.height - 2 * r).coerceAtLeast(0)) {
+            placeable.place(0, -r)
+        }
+    }
 
 internal fun closeExpansions() {
     ConnectivityFolderExpansion.expanded = false
