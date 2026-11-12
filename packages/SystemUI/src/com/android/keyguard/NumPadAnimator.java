@@ -59,10 +59,11 @@ class NumPadAnimator {
     private float mStartRadius;
     private float mEndRadius;
 
-    private static final int GLASS_FILL = 0x3DFFFFFF;
+    // A light tint, so SurfaceFlinger's glass (refraction at the edge) shows through.
+    private static final int GLASS_FILL = 0x1FFFFFFF;
     // [PenguinOS] Glass keys stay round when pressed; the glass press (PinKeyGlass) moves them.
     private boolean mGlass;
-    private static final int GLASS_FILL_PRESSED = 0x73FFFFFF;
+    private static final int GLASS_FILL_PRESSED = 0x52FFFFFF;
     private int mHeight;
     private int mWidth;
 

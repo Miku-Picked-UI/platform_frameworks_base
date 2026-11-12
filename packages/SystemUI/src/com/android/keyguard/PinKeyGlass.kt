@@ -51,8 +51,9 @@ class PinKeyGlass(private val view: View) {
         val drawable =
             blur
                 ?: view.viewRootImpl?.createBackgroundBlurDrawable()?.also {
-                    // Draw over what the bouncer drew below the key instead of clearing it.
-                    it.setXfermode(null)
+                    // Clear what the bouncer drew below the key (its dimming scrim), as a glass
+                    // slab does: drawn over it, the scrim sat on top of SurfaceFlinger's glass
+                    // and washed out the lens and edges, leaving a plain blurred circle.
                     it.setColor(0)
                     blur = it
                 }
