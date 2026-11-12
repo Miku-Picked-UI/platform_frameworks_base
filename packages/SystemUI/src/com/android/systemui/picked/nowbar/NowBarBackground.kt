@@ -203,7 +203,9 @@ class NowBarBackground(private val view: View) {
         /** System-wide Liquid Glass in renderengine (from PenguinOS). */
         private const val SYSTEM_GLASS_PROPERTY = "persist.sys.penguin.liquid_glass"
 
-        private const val LIQUID_BLUR = 80
+        // Liquid Glass is clear glass: a light blur, with SurfaceFlinger's lens refraction doing
+        // the rest. At the frosted radius it read as frosted glass once blurs were drawn again.
+        private const val LIQUID_BLUR = 16
         private const val FROSTED_BLUR = 80
         private val LIQUID_TINT = Color.argb(0x40, 0x10, 0x10, 0x14)
         private val FROSTED_TINT = Color.argb(0x73, 0x16, 0x16, 0x1A)
