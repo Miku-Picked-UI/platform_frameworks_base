@@ -1057,10 +1057,8 @@ public class WindowManagerService extends IWindowManager.Stub
         }
 
         void updateDisableSecureWindows() {
-            if (!SystemProperties.getBoolean(SYSTEM_DEBUGGABLE, false)) {
-                return;
-            }
-
+            // Miku-Picked UI: a user setting (Picked features → Allow screenshots in secure
+            // apps), so it works on user builds too, not only debuggable ones.
             boolean disableSecureWindows;
             try {
                 disableSecureWindows = Settings.Secure.getIntForUser(mContext.getContentResolver(),
@@ -1253,6 +1251,9 @@ public class WindowManagerService extends IWindowManager.Stub
     private final ScreenRecordingCallbackController mScreenRecordingCallbackController;
 
     private volatile boolean mDisableSecureWindows = false;
+
+    private static final String PICKED_HIDE_SCREENSHOT_DETECTION =
+            "picked_hide_screenshot_detection";
 
     /** Creates an instance of the WindowManagerService for the system server. */
     public static WindowManagerService main(@NonNull final Context context,
@@ -10762,6 +10763,19 @@ public class WindowManagerService extends IWindowManager.Stub
         if (!checkCallingPermission(STATUS_BAR_SERVICE,
                 "notifyScreenshotListeners()")) {
             throw new SecurityException("Requires STATUS_BAR_SERVICE permission");
+        }
+        // Miku-Picked UI: Settings.Secure picked_hide_screenshot_detection keeps apps from
+        // learning that a screenshot was taken (Activity#registerScreenCaptureCallback).
+        final long ident = Binder.clearCallingIdentity();
+        final boolean hideDetection;
+        try {
+            hideDetection = Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                    PICKED_HIDE_SCREENSHOT_DETECTION, 0, mCurrentUserId) != 0;
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+        if (hideDetection) {
+            return new ArrayList<>();
         }
         synchronized (mGlobalLock) {
             final DisplayContent displayContent = mRoot.getDisplayContent(displayId);
