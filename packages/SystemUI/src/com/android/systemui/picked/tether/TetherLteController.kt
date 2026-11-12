@@ -45,6 +45,8 @@ constructor(
 ) : CoreStartable {
 
     private var tethering = false
+    private var retries = 0
+    private val retry = Runnable { update() }
 
     override fun start() {
         val receiver =
@@ -89,6 +91,7 @@ constructor(
 
     /** Applies or lifts the restriction on every active subscription. Runs on [bgHandler]. */
     private fun update() {
+        bgHandler.removeCallbacks(retry)
         val restrict = tethering && enabled()
         val subs =
             try {
@@ -100,17 +103,29 @@ constructor(
                 null
             } ?: return
         val telephony = context.getSystemService(TelephonyManager::class.java) ?: return
+        var settled = true
         for (subId in subs) {
-            try {
-                apply(telephony.createForSubscriptionId(subId), subId, restrict)
-            } catch (e: RuntimeException) {
-                // Telephony not ready, or the SIM just went away: the next change retries.
-                Log.w(TAG, "sub $subId: could not update allowed network types", e)
-            }
+            val held =
+                try {
+                    apply(telephony.createForSubscriptionId(subId), subId, restrict)
+                } catch (e: RuntimeException) {
+                    // Telephony not ready, or the SIM just went away.
+                    Log.w(TAG, "sub $subId: could not update allowed network types", e)
+                    false
+                }
+            if (!held) settled = false
+        }
+        // Telephony drops a request it can't serve right now (the SIM or radio is still coming
+        // up), so try again until it holds; a subscription change also retries.
+        if (settled) {
+            retries = 0
+        } else if (retries < MAX_RETRIES) {
+            bgHandler.postDelayed(retry, RETRY_MS shl minOf(retries++, 4))
         }
     }
 
-    private fun apply(tm: TelephonyManager, subId: Int, restrict: Boolean) {
+    /** Returns whether Telephony now holds what this subscription should have. */
+    private fun apply(tm: TelephonyManager, subId: Int, restrict: Boolean): Boolean {
         val key = SAVED_PREFIX + subId
         val cr = context.contentResolver
         val saved = Settings.Global.getString(cr, key)?.toLongOrNull()
@@ -123,11 +138,19 @@ constructor(
                 tm.setAllowedNetworkTypesForReason(REASON, target)
                 Log.i(TAG, "sub $subId: tethering, 5G off")
             }
+            return tm.getAllowedNetworkTypesForReason(REASON) == target
         } else if (saved != null) {
             tm.setAllowedNetworkTypesForReason(REASON, saved)
+            // Forget the saved mask only once Telephony has taken it back; clearing it after a
+            // dropped request left 5G off for good after tethering.
+            if (tm.getAllowedNetworkTypesForReason(REASON) != saved) {
+                Log.w(TAG, "sub $subId: Telephony did not take the mask back yet")
+                return false
+            }
             Settings.Global.putString(cr, key, null)
             Log.i(TAG, "sub $subId: 5G allowed again")
         }
+        return true
     }
 
     companion object {
@@ -141,5 +164,9 @@ constructor(
 
         private const val REASON = TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER
         private const val NR = TelephonyManager.NETWORK_TYPE_BITMASK_NR
+
+        /** First retry delay; doubles each time, up to [MAX_RETRIES] tries. */
+        private const val RETRY_MS = 2000L
+        private const val MAX_RETRIES = 10
     }
 }
