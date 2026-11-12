@@ -766,6 +766,29 @@ private fun <T> releaseSpring() = spring<T>(dampingRatio = 0.38f, stiffness = Sp
 @Composable
 fun Modifier.glassPress(): Modifier = liquidGlassPress(liquidGlassEnabled())
 
+/**
+ * Miku-Picked UI: the glass press for sliders. The slider lifts a little while held and
+ * stretches along the drag (narrowing across it), then wobbles back, like the PIN keys and
+ * tiles, but it never moves sideways: the slider follows the finger, and moving it under the
+ * finger would make the value jump.
+ */
+@Composable
+fun Modifier.glassSquish(): Modifier =
+    if (!liquidGlassEnabled()) this
+    else
+        composed {
+            val press = remember { GlassPress() }
+            this.pointerInput(Unit) { trackGlassPress(press) { true } }
+                .graphicsLayer {
+                    val l = press.lift.value
+                    val off = press.lean.value
+                    val stretchX = abs(off.x) / 10.dp.toPx() * 0.04f
+                    val stretchY = abs(off.y) / 10.dp.toPx() * 0.04f
+                    scaleX = 1f + 0.03f * l + stretchX - stretchY * 0.5f
+                    scaleY = 1f + 0.03f * l + stretchY - stretchX * 0.5f
+                }
+        }
+
 @Composable
 fun Modifier.glassRim(shape: Shape, strength: Float = 1f): Modifier =
     when {
