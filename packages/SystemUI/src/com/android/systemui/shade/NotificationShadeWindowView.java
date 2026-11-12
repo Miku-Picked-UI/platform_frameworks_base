@@ -122,6 +122,7 @@ public class NotificationShadeWindowView extends WindowRootView {
     // One UI: with the split shade open, pulling down from the top edge on the other panel's
     // side (right for Quick Settings, left for the notifications; mirrored in RTL) switches.
     private int mPickedTopPull = PICKED_SWITCH_NONE;
+    private static final float PICKED_QS_EMPTY_RADIUS_PX = 200f;
 
     private int pickedTopPullTarget(MotionEvent ev) {
         if (!QuickSettingsControllerImpl.pickedIsSplitPanels()) return PICKED_SWITCH_NONE;
@@ -152,8 +153,11 @@ public class NotificationShadeWindowView extends WindowRootView {
                         && !pickedTouchOnNotification(ev)) {
                     mPickedSwitch = PICKED_SWITCH_TO_QS;
                 } else if (QuickSettingsControllerImpl.pickedCanSwitchPanels(false)) {
-                    final float h = getHeight();
-                    if (ev.getY() < h * 0.2f || ev.getY() > h * 0.85f) {
+                    // Only from empty space: nothing in Quick Settings within ~200 px, so the
+                    // swipe can't have been meant for a tile, slider or page.
+                    final View qs = findViewById(com.android.systemui.res.R.id.qs_frame);
+                    if (!PickedQsHitTest.isNearControl(qs, ev.getX(), ev.getY(),
+                            PICKED_QS_EMPTY_RADIUS_PX)) {
                         mPickedSwitch = PICKED_SWITCH_TO_NOTIFICATIONS;
                     }
                 }
