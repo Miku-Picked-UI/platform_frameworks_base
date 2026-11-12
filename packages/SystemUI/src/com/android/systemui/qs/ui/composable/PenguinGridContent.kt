@@ -295,8 +295,11 @@ internal fun penguinPageHeight(pages: List<List<PenguinGrid.Item>>, extraRows: I
 fun ContentScope.PenguinGridQuickSettings(
     viewModel: QuickSettingsContainerViewModel,
     modifier: Modifier = Modifier,
+    // False when the host already tags the panel as Elements.QuickSettingsContent (as
+    // QSFragmentCompose does); an element may only be composed once per content.
+    tagContent: Boolean = true,
 ) {
-    PenguinGridTheme { PenguinGridQuickSettingsContent(viewModel, modifier) }
+    PenguinGridTheme { PenguinGridQuickSettingsContent(viewModel, modifier, tagContent) }
 }
 
 @Composable
@@ -313,6 +316,7 @@ fun ContentScope.OneUiGridQuickSettings(
 private fun ContentScope.PenguinGridQuickSettingsContent(
     viewModel: QuickSettingsContainerViewModel,
     modifier: Modifier,
+    tagContent: Boolean = true,
 ) {
     val model = rememberPenguinGridModel(viewModel)
     val wide = wideControlCentre() && contentKey is OverlayKey
@@ -321,7 +325,7 @@ private fun ContentScope.PenguinGridQuickSettingsContent(
         LocalPenguinGridLoose provides model.loose,
         LocalPenguinCell provides cell,
     ) {
-        PenguinGridPages(viewModel, model, wide, modifier)
+        PenguinGridPages(viewModel, model, wide, modifier, tagContent)
     }
 }
 
@@ -331,6 +335,7 @@ private fun ContentScope.PenguinGridPages(
     model: PenguinGridModel,
     wide: Boolean,
     modifier: Modifier,
+    tagContent: Boolean,
 ) {
     val combined = contentKey != Overlays.QuickSettingsShade
     val pages = remember(model.pages, wide, combined) {
@@ -405,7 +410,7 @@ private fun ContentScope.PenguinGridPages(
     Box(
         modifier =
             modifier
-                .element(Elements.QuickSettingsContent)
+                .thenIf(tagContent) { Modifier.element(Elements.QuickSettingsContent) }
                 .then(
                     if (wide) Modifier.fillMaxWidth().wrapContentWidth().width(wideGridWidth())
                     else Modifier.fillMaxWidth()

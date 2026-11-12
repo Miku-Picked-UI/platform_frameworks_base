@@ -968,7 +968,8 @@ constructor(
                                     com.android.systemui.qs.ui.composable.LocalQsLargeTiles
                                         provides largeTiles,
                                 ) {
-                                    PenguinGridQuickSettings(containerViewModel)
+                                    // Inside this fragment's own QuickSettingsContent element.
+                                    PenguinGridQuickSettings(containerViewModel, tagContent = false)
                                 }
                             } else {
                                 QuickSettingsLayout(
