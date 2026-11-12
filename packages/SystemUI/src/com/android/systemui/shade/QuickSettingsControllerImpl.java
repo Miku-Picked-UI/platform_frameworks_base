@@ -449,37 +449,58 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     }
 
     /** Switches to Quick Settings ({@code toQs}) or back to the notifications. */
-    static void pickedSwitchPanels(boolean toQs) {
+    static void pickedSwitchPanels(boolean toQs, boolean fromTop) {
         final QuickSettingsControllerImpl qs = sPickedInstance != null ? sPickedInstance.get() : null;
         if (qs == null || !pickedCanSwitchPanels(toQs)) return;
         if (qs.isLegacySplitShadeActive()) {
-            qs.pickedSwitchSplitPanels(toQs);
+            qs.pickedSwitchSplitPanels(toQs, fromTop);
         } else {
             qs.flingQs(0 /* vel */, toQs ? FLING_EXPAND : FLING_COLLAPSE);
         }
     }
 
-    // [Miku-Picked UI] One UI / ColorOS-style switch between the split shade's panels: the
-    // outgoing panel slides a little towards the side it leaves by, shrinks and fades while the
-    // other one comes in from the opposite side. Both stay visible only while it runs.
-    private static final long PICKED_SWITCH_DURATION_MS = 380;
-    private static final float PICKED_SWITCH_SHIFT = 0.12f;  // of the panel width
-    private static final float PICKED_SWITCH_SCALE = 0.94f;
+    // [Miku-Picked UI] One UI / ColorOS-style switch between the split shade's panels, matching
+    // the gesture that started it:
+    //  - pulled down from the top edge: the other panel comes down into place, as it does when
+    //    the shade opens, while this one fades and lifts away;
+    //  - swiped from the side: the other panel slides over from that side while this one
+    //    drifts back and fades.
+    // Panels only move (translation) and fade; the notification stack fades as a hardware
+    // layer, and Quick Settings fades inside Compose (PickedPanelSwitch), so its Liquid Glass
+    // fades with it. Both stay drawn only while it runs.
+    private static final long PICKED_SWITCH_SIDE_MS = 440;
+    private static final long PICKED_SWITCH_TOP_MS = 420;
+    private static final float PICKED_SWITCH_BACK = 0.25f;  // outgoing drift, of the width
+    private static final float PICKED_SWITCH_DROP = 0.2f;   // incoming drop, of the height
+    private static final float PICKED_SWITCH_LIFT = 0.05f;  // outgoing lift, of the height
     private ValueAnimator mPickedSwitchAnimator;
 
-    private void pickedSwitchSplitPanels(boolean toQs) {
-        final View qsView = mQsFrame;
+    /** A softly damped spring as a time curve (damping 0.86, settled by the end). */
+    private static final android.animation.TimeInterpolator PICKED_SPRING = t -> {
+        final float zeta = 0.86f;
+        final float omega = 8.2f;
+        final float wd = omega * (float) Math.sqrt(1f - zeta * zeta);
+        final float decay = (float) Math.exp(-zeta * omega * t);
+        return 1f - decay * ((float) Math.cos(wd * t)
+                + zeta * omega / wd * (float) Math.sin(wd * t));
+    };
+
+    private void pickedSwitchSplitPanels(boolean toQs, boolean fromTop) {
+        final View qsView = mQs != null && mQs.getView() != null ? mQs.getView() : mQsFrame;
         final View nssl = mNotificationStackScrollLayoutController.getView();
         if (qsView == null || nssl == null) return;
         final View in = toQs ? qsView : nssl;
         final View out = toQs ? nssl : qsView;
-        // QS sits on the right (left in RTL), so it comes in from that side.
+        // QS sits on the right (left in RTL), so from the side it comes in from there.
         final boolean rtl = mPanelView.isLayoutRtl();
         final float dir = (toQs != rtl) ? 1f : -1f;
-        final float shift = PICKED_SWITCH_SHIFT * Math.max(mPanelView.getWidth(), 1);
+        final float width = Math.max(mPanelView.getWidth(), 1);
+        final float height = Math.max(mPanelView.getHeight(), 1);
 
         final ValueAnimator anim = ValueAnimator.ofFloat(0f, 1f);
         mPickedSwitchAnimator = anim;
+        final int nsslLayer = nssl.getLayerType();
+        nssl.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         // Both panels stay drawn while mPickedSwitchAnimator is set (updateQsState()), which
         // hides the outgoing one at the end.
         setExpandImmediate(false);
@@ -487,20 +508,20 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         if (toQs) setListening(true);
         setExpanded(toQs);
         updateExpansion();
-        pickedApplySwitch(in, out, 0f, dir, shift);
-        anim.setDuration(PICKED_SWITCH_DURATION_MS);
-        anim.setInterpolator(Interpolators.EMPHASIZED_DECELERATE);
-        anim.addUpdateListener(a ->
-                pickedApplySwitch(in, out, (float) a.getAnimatedValue(), dir, shift));
+        pickedApplySwitch(in, out, nssl, 0f, fromTop, dir, width, height);
+        anim.setDuration(fromTop ? PICKED_SWITCH_TOP_MS : PICKED_SWITCH_SIDE_MS);
+        anim.setInterpolator(fromTop ? Interpolators.EMPHASIZED_DECELERATE : PICKED_SPRING);
+        anim.addUpdateListener(a -> pickedApplySwitch(in, out, nssl,
+                (float) a.getAnimatedValue(), fromTop, dir, width, height));
         anim.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
                 for (View v : new View[] {in, out}) {
                     v.setTranslationX(0f);
-                    v.setScaleX(1f);
-                    v.setScaleY(1f);
-                    v.setTransitionAlpha(1f);
+                    v.setTranslationY(0f);
+                    pickedSetAlpha(v, nssl, 1f);
                 }
+                nssl.setLayerType(nsslLayer, null);
                 mPickedSwitchAnimator = null;
                 updateQsState();
             }
@@ -508,19 +529,31 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         anim.start();
     }
 
-    private static void pickedApplySwitch(View in, View out, float p, float dir, float shift) {
-        // The outgoing panel is gone by the first half, so the two never read on top of
-        // each other.
-        out.setTransitionAlpha(Math.max(0f, 1f - p * 2f));
-        out.setTranslationX(-dir * shift * p);
-        final float outScale = 1f - (1f - PICKED_SWITCH_SCALE) * p;
-        out.setScaleX(outScale);
-        out.setScaleY(outScale);
-        in.setTransitionAlpha(Math.min(1f, p * 1.4f));
-        in.setTranslationX(dir * shift * (1f - p));
-        final float inScale = PICKED_SWITCH_SCALE + (1f - PICKED_SWITCH_SCALE) * p;
-        in.setScaleX(inScale);
-        in.setScaleY(inScale);
+    private static void pickedApplySwitch(View in, View out, View nssl, float p, boolean fromTop,
+            float dir, float width, float height) {
+        if (fromTop) {
+            in.setTranslationX(0f);
+            in.setTranslationY(-PICKED_SWITCH_DROP * height * (1f - p));
+            pickedSetAlpha(in, nssl, Math.min(1f, p * 1.8f));
+            out.setTranslationX(0f);
+            out.setTranslationY(-PICKED_SWITCH_LIFT * height * p);
+            pickedSetAlpha(out, nssl, Math.max(0f, 1f - p * 2f));
+        } else {
+            in.setTranslationY(0f);
+            in.setTranslationX(dir * width * (1f - p));
+            pickedSetAlpha(in, nssl, 1f);
+            out.setTranslationY(0f);
+            out.setTranslationX(-dir * PICKED_SWITCH_BACK * width * p);
+            pickedSetAlpha(out, nssl, Math.max(0f, 1f - p * 1.4f));
+        }
+    }
+
+    private static void pickedSetAlpha(View v, View nssl, float alpha) {
+        if (v == nssl) {
+            v.setTransitionAlpha(alpha);
+        } else {
+            com.android.systemui.qs.composefragment.PickedPanelSwitch.setQsFade(alpha);
+        }
     }
 
     @VisibleForTesting

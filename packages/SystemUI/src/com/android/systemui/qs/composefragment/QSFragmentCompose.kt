@@ -328,7 +328,9 @@ constructor(
                                     }
                                 }
                             }
-                            .graphicsLayer { alpha = viewModel.viewAlpha }
+                            .graphicsLayer {
+                                alpha = viewModel.viewAlpha * PickedPanelSwitch.qsAlpha
+                            }
                             .thenIf(!Flags.notificationShadeBlur()) {
                                 Modifier.offset {
                                     IntOffset(
@@ -349,7 +351,7 @@ constructor(
                     // split shade also fades the QS frame with the shade's expansion).
                     CompositionLocalProvider(
                         com.android.systemui.qs.shared.style.LocalGlassBlurAlpha provides {
-                            viewModel.viewAlpha *
+                            viewModel.viewAlpha * PickedPanelSwitch.qsAlpha *
                                 com.android.systemui.animation.ShadeInterpolation.getContentAlpha(
                                     (viewModel.panelExpansionFraction / 0.9f).coerceIn(0f, 1f)
                                 )
