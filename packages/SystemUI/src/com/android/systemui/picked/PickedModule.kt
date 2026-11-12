@@ -7,6 +7,7 @@ package com.android.systemui.picked
 
 import com.android.systemui.CoreStartable
 import com.android.systemui.picked.oneuisland.OneUislandHost
+import com.android.systemui.picked.tether.TetherLteController
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
@@ -47,6 +48,12 @@ interface PickedModule {
     @IntoMap
     @ClassKey(OneUislandHost::class)
     fun bindOneUislandHost(host: OneUislandHost): CoreStartable
+
+    /** [Miku-Picked UI] LTE only while tethering */
+    @Binds
+    @IntoMap
+    @ClassKey(TetherLteController::class)
+    fun bindTetherLteController(controller: TetherLteController): CoreStartable
 
     companion object {
         /** [uwuAOSP] Auto brightness tile config */
