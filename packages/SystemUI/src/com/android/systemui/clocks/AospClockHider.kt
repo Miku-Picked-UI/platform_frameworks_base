@@ -12,7 +12,8 @@ import com.android.systemui.plugins.keyguard.ui.clocks.ClockViewIds
 import com.android.systemui.res.R
 
 /**
- * Miku-Picked UI: hides the stock lockscreen clock while a custom clock style is shown.
+ * Miku-Picked UI: hides the stock lockscreen clock, and the default date, while a custom
+ * clock style is shown.
  *
  * Setting the stock clock's alpha to 0 does not stick: the clock size transitions animate
  * it back to 1. An empty clip area is left alone by the transitions and the constraint
@@ -21,8 +22,15 @@ import com.android.systemui.res.R
  */
 object AospClockHider {
 
+    // The stock clock, and the default date (and day) the smartspace shows next to or under it:
+    // the custom clocks draw their own date.
     private val CLOCK_IDS =
-        intArrayOf(ClockViewIds.LOCKSCREEN_CLOCK_VIEW_LARGE, ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL)
+        intArrayOf(
+            ClockViewIds.LOCKSCREEN_CLOCK_VIEW_LARGE,
+            ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
+            com.android.systemui.shared.R.id.date_smartspace_view,
+            com.android.systemui.shared.R.id.date_smartspace_view_large,
+        )
 
     /** Hides or shows the stock clock views found under [root]. */
     @JvmStatic
