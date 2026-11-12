@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Miku-Picked UI
+     SPDX-License-Identifier: Apache-2.0
+-->
+<!-- Wireless PowerShare: a battery with charge waves coming off its back -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?android:attr/colorControlNormal">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M8,4h2v-1h4v1h2c0.55,0 1,0.45 1,1v8h-2v-7h-6v14h4v2h-5c-0.55,0 -1,-0.45 -1,-1v-16c0,-0.55 0.45,-1 1,-1zM13,9l-3,5h2.5l-0.5,4 3,-5h-2.5z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M15.5,15.5c1.4,1.4 1.4,3.6 0,5l-1.06,-1.06c0.8,-0.8 0.8,-2.08 0,-2.88zM18.3,12.7c2.95,2.95 2.95,7.65 0,10.6l-1.06,-1.06c2.36,-2.36 2.36,-6.12 0,-8.48z" />
+</vector>
