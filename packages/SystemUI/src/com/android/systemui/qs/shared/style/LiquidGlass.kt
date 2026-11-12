@@ -423,8 +423,16 @@ object LiquidGlass {
         rimPath.reset()
         rimPath.addRoundRect(rimRect, rimRadii, android.graphics.Path.Direction.CW)
         rimPaint.strokeWidth = width
-        rimPaint.shader =
-            rimShader(rect.left, rect.top, rect.right, rect.bottom, LiquidGlassTune.f("view_rim", 0.9f))
+        // Miku-Picked UI: the rim is an even hairline, so a solid color instead of a new
+        // gradient shader per call (this ran for every notification card on every scroll frame).
+        rimPaint.shader = null
+        rimPaint.color =
+            android.graphics.Color.argb(
+                LiquidGlassTune.f("rim_mid", 0.32f) * LiquidGlassTune.f("view_rim", 0.9f),
+                1f,
+                1f,
+                1f,
+            )
         drawRoundRectStroke(canvas, rimRect, rimRadii, rimPaint)
     }
 
