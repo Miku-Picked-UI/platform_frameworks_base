@@ -113,6 +113,8 @@ constructor(
             }
         }
         smartspaceView?.viewTreeObserver?.addOnGlobalLayoutListener(smartspaceVisibilityListener)
+        // Miku-Picked UI: the default date stays hidden while a custom clock is shown.
+        com.android.systemui.clocks.AospClockHider.reapply(constraintLayout)
     }
 
     override fun bindData(constraintLayout: ConstraintLayout) {

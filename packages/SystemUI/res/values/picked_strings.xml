@@ -36,6 +36,9 @@
     <!-- [AxionOS] 5G Quick Settings tile -->
     <string name="quick_settings_5g_label">5G</string>
     <string name="quick_settings_5g_editor_label">5G</string>
+    <!-- [Miku-Picked UI] Wireless PowerShare (reverse wireless charging) tile -->
+    <string name="quick_settings_powershare_label">Wireless PowerShare</string>
+    <string name="quick_settings_powershare_on">Place a device on the back</string>
 
     <!-- [uwuAOSP] Auto brightness tile -->
     <string name="quick_settings_autobrightness_label">Auto brightness</string>

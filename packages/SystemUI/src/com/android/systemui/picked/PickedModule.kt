@@ -13,6 +13,7 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.AutoBrightnessTile
+import com.android.systemui.qs.tiles.PowerShareTile
 import com.android.systemui.qs.tiles.SleepModeTile
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
@@ -43,6 +44,12 @@ interface PickedModule {
     @StringKey(SleepModeTile.TILE_SPEC)
     fun bindSleepModeTile(sleepModeTile: SleepModeTile): QSTileImpl<*>
 
+    /** [Miku-Picked UI] Wireless PowerShare (reverse wireless charging) tile */
+    @Binds
+    @IntoMap
+    @StringKey(PowerShareTile.TILE_SPEC)
+    fun bindPowerShareTile(powerShareTile: PowerShareTile): QSTileImpl<*>
+
     /** [OneUisland] Dynamic island */
     @Binds
     @IntoMap
@@ -56,6 +63,22 @@ interface PickedModule {
     fun bindTetherLteController(controller: TetherLteController): CoreStartable
 
     companion object {
+        /** [Miku-Picked UI] Wireless PowerShare tile config */
+        @Provides
+        @IntoMap
+        @StringKey(PowerShareTile.TILE_SPEC)
+        fun providePowerShareTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(PowerShareTile.TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = R.drawable.ic_qs_powershare,
+                        labelRes = R.string.quick_settings_powershare_label,
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.UTILITIES,
+            )
+
         /** [uwuAOSP] Auto brightness tile config */
         @Provides
         @IntoMap

@@ -593,6 +593,8 @@ android_library {
         "kairos",
         "displaylib",
         "aconfig_settings_flags_lib",
+        // [Miku-Picked UI] Wireless PowerShare tile
+        "vendor.lineage.powershare-V1-java",
     ],
     javacflags: [
         "-Aroom.schemaLocation=frameworks/base/packages/SystemUI/schemas",
