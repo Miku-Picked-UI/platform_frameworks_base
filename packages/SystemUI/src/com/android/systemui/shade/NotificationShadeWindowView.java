@@ -119,6 +119,27 @@ public class NotificationShadeWindowView extends WindowRootView {
     private int mPickedSwitch = PICKED_SWITCH_NONE;
     private float mPickedDownX;
     private float mPickedDownY;
+    // One UI: with the split shade open, pulling down from the top edge on the other panel's
+    // side (right for Quick Settings, left for the notifications; mirrored in RTL) switches.
+    private int mPickedTopPull = PICKED_SWITCH_NONE;
+
+    private int pickedTopPullTarget(MotionEvent ev) {
+        if (!QuickSettingsControllerImpl.pickedIsSplitPanels()) return PICKED_SWITCH_NONE;
+        final float topZone = 72 * getResources().getDisplayMetrics().density;
+        if (ev.getY() > topZone) return PICKED_SWITCH_NONE;
+        final boolean right = ev.getX() > getWidth() / 2f;
+        final boolean toQs = right != isLayoutRtl();
+        if (!QuickSettingsControllerImpl.pickedCanSwitchPanels(toQs)) return PICKED_SWITCH_NONE;
+        return toQs ? PICKED_SWITCH_TO_QS : PICKED_SWITCH_TO_NOTIFICATIONS;
+    }
+
+    private void pickedCancelChildren(MotionEvent ev) {
+        // Let the views that saw the start of the gesture give it up.
+        final MotionEvent cancel = MotionEvent.obtain(ev);
+        cancel.setAction(MotionEvent.ACTION_CANCEL);
+        super.dispatchTouchEvent(cancel);
+        cancel.recycle();
+    }
 
     private boolean pickedPanelSwitch(MotionEvent ev) {
         switch (ev.getActionMasked()) {
@@ -126,6 +147,7 @@ public class NotificationShadeWindowView extends WindowRootView {
                 mPickedDownX = ev.getRawX();
                 mPickedDownY = ev.getRawY();
                 mPickedSwitch = PICKED_SWITCH_NONE;
+                mPickedTopPull = pickedTopPullTarget(ev);
                 if (QuickSettingsControllerImpl.pickedCanSwitchPanels(true)
                         && !pickedTouchOnNotification(ev)) {
                     mPickedSwitch = PICKED_SWITCH_TO_QS;
@@ -139,11 +161,24 @@ public class NotificationShadeWindowView extends WindowRootView {
             }
             case MotionEvent.ACTION_MOVE: {
                 if (mPickedSwitch == PICKED_SWITCH_DONE) return true;
-                if (mPickedSwitch == PICKED_SWITCH_NONE) return false;
                 final float dx = ev.getRawX() - mPickedDownX;
                 final float dy = ev.getRawY() - mPickedDownY;
                 final float slop = android.view.ViewConfiguration.get(getContext())
                         .getScaledTouchSlop();
+                if (mPickedTopPull != PICKED_SWITCH_NONE) {
+                    final float pull = 40 * getResources().getDisplayMetrics().density;
+                    if (dy < -slop || Math.abs(dx) > Math.max(dy, slop) * 1.5f) {
+                        mPickedTopPull = PICKED_SWITCH_NONE; // not a pull down
+                    } else if (dy > pull) {
+                        final boolean toQs = mPickedTopPull == PICKED_SWITCH_TO_QS;
+                        mPickedTopPull = PICKED_SWITCH_NONE;
+                        mPickedSwitch = PICKED_SWITCH_DONE;
+                        pickedCancelChildren(ev);
+                        QuickSettingsControllerImpl.pickedSwitchPanels(toQs);
+                        return true;
+                    }
+                }
+                if (mPickedSwitch == PICKED_SWITCH_NONE) return false;
                 if (Math.abs(dy) > slop && Math.abs(dy) > Math.abs(dx)) {
                     mPickedSwitch = PICKED_SWITCH_NONE; // a vertical gesture: leave it alone
                     return false;
@@ -153,11 +188,8 @@ public class NotificationShadeWindowView extends WindowRootView {
                 if (Math.abs(dx) > distance && Math.abs(dx) > 2 * Math.abs(dy)
                         && (toQs ? dx < 0 : dx > 0)) {
                     mPickedSwitch = PICKED_SWITCH_DONE;
-                    // Let the views that saw the start of the gesture give it up.
-                    final MotionEvent cancel = MotionEvent.obtain(ev);
-                    cancel.setAction(MotionEvent.ACTION_CANCEL);
-                    super.dispatchTouchEvent(cancel);
-                    cancel.recycle();
+                    mPickedTopPull = PICKED_SWITCH_NONE;
+                    pickedCancelChildren(ev);
                     QuickSettingsControllerImpl.pickedSwitchPanels(toQs);
                     return true;
                 }
@@ -167,6 +199,7 @@ public class NotificationShadeWindowView extends WindowRootView {
             case MotionEvent.ACTION_CANCEL: {
                 final boolean swallow = mPickedSwitch == PICKED_SWITCH_DONE;
                 mPickedSwitch = PICKED_SWITCH_NONE;
+                mPickedTopPull = PICKED_SWITCH_NONE;
                 return swallow;
             }
             default:
