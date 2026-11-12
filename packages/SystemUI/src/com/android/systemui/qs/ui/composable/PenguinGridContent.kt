@@ -35,6 +35,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -433,12 +435,19 @@ private fun ContentScope.PenguinGridPages(
                 }
             }
         CompositionLocalProvider(LocalGlassBlurAlpha provides gridBlurAlpha) {
+        // The pager clips along its scroll axis, which cut off the top or bottom row's tiles
+        // while the glass press lifts and stretches them. Give it room above and below that the
+        // content padding takes back (so nothing moves), and space the pages so the next one
+        // never shows in that room.
+        Box(Modifier.fillMaxWidth().height(pageHeight)) {
         VerticalPager(
             state = pagerState,
             userScrollEnabled = !sheetShowing,
+            contentPadding = PaddingValues(vertical = PressRoom),
+            pageSpacing = PressRoom,
             modifier =
                 Modifier.fillMaxWidth()
-                    .height(pageHeight)
+                    .requiredHeight(pageHeight + PressRoom * 2)
                     .padding(horizontal = horizontalMargin)
                     .graphicsLayer {
                         val f = progress.value
@@ -487,6 +496,7 @@ private fun ContentScope.PenguinGridPages(
                 }
             }
         }
+        } // pager room Box
         }
 
 
@@ -613,6 +623,9 @@ internal fun PenguinGridTheme(content: @Composable () -> Unit) {
         PlatformTheme(isDarkTheme = true, content = content)
     }
 }
+
+/** Room above and below the grid pages for the glass press to lift and stretch tiles into. */
+private val PressRoom = 14.dp
 
 internal fun closeExpansions() {
     ConnectivityFolderExpansion.expanded = false
