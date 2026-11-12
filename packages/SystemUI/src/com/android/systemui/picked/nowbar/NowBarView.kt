@@ -50,6 +50,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.dynamicanimation.animation.DynamicAnimation
+import androidx.dynamicanimation.animation.FloatValueHolder
+import androidx.dynamicanimation.animation.SpringAnimation
+import androidx.dynamicanimation.animation.SpringForce
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.systemui.Dependency
 import com.android.systemui.plugins.ActivityStarter
@@ -561,7 +565,7 @@ class NowBarView(
         ordering = TransitionSet.ORDERING_TOGETHER
         addTransition(ChangeBounds().apply {
             duration = MORPH_MS
-            interpolator = EMPHASIZED
+            interpolator = SPRING
         })
         addTransition(Fade(Fade.OUT).apply {
             duration = 120
@@ -595,23 +599,102 @@ class NowBarView(
     // region Paging
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> pressScale(if (expanded) 0.985f else 0.965f, true)
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pressScale(1f, false)
-        }
+        glassPress(ev)
         return super.dispatchTouchEvent(ev)
     }
 
-    /** Squeezes the bar under the finger and lets it spring back on release. */
-    private fun pressScale(target: Float, down: Boolean) {
-        if (!shown) return
-        animate()
-            .scaleX(target).scaleY(target)
-            .setStartDelay(0)
-            .setDuration(if (down) 140 else 420)
-            .setInterpolator(if (down) EMPHASIZED else OvershootInterpolator(2.2f))
-            .start()
+    // region Glass press
+
+    // Miku-Picked UI: the Liquid Glass press of the PIN keys and Quick Settings tiles (from
+    // PenguinOS' LiquidGlass.kt): the bar lifts under the finger, leans toward where it drags
+    // with rubber-band resistance, stretches along the drag and wobbles back when let go. It
+    // moves through the view's own properties, so SurfaceFlinger's glass behind it follows.
+    private val pressLift = FloatValueHolder(0f)
+    private val pressLeanX = FloatValueHolder(0f)
+    private val pressLeanY = FloatValueHolder(0f)
+    private val pressLiftSpring = pressSpring(pressLift)
+    private val pressLeanXSpring = pressSpring(pressLeanX)
+    private val pressLeanYSpring = pressSpring(pressLeanY)
+    private var pressDownX = 0f
+    private var pressDownY = 0f
+    private var pressing = false
+
+    private fun pressSpring(holder: FloatValueHolder) =
+        SpringAnimation(holder).apply {
+            spring = SpringForce(0f)
+            setMinimumVisibleChange(DynamicAnimation.MIN_VISIBLE_CHANGE_SCALE)
+            addUpdateListener { _, _, _ -> applyPress() }
+        }
+
+    private fun glassPress(ev: MotionEvent) {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                // Not while it pops in or out, or mid page swipe.
+                if (!shown || swiping || alpha < 1f || showSpringsRunning()) return
+                pressing = true
+                pressDownX = ev.rawX
+                pressDownY = ev.rawY
+                springTo(pressLiftSpring, 1f, PRESS_DAMPING, PRESS_STIFFNESS)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (!pressing || swiping) return
+                val dx = ev.rawX - pressDownX
+                val dy = ev.rawY - pressDownY
+                val reach = dp(if (expanded) 6 else PRESS_REACH_DP).toFloat()
+                val dist = kotlin.math.hypot(dx, dy)
+                val pull =
+                    if (dist == 0f) 0f else reach * (1f - 1f / (1f + dist / (reach * 3f))) / dist
+                pressLeanXSpring.cancel()
+                pressLeanYSpring.cancel()
+                pressLeanX.value = dx * pull
+                pressLeanY.value = dy * pull
+                applyPress()
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> releasePress()
+        }
     }
+
+    private fun releasePress() {
+        if (!pressing) return
+        pressing = false
+        springTo(pressLiftSpring, 0f, RELEASE_DAMPING, RELEASE_STIFFNESS)
+        springTo(pressLeanXSpring, 0f, RELEASE_DAMPING, RELEASE_STIFFNESS)
+        springTo(pressLeanYSpring, 0f, RELEASE_DAMPING, RELEASE_STIFFNESS)
+    }
+
+    /** Drops the press at once, for a page swipe or the bar going away. */
+    private fun resetPress() {
+        pressing = false
+        pressLiftSpring.cancel()
+        pressLeanXSpring.cancel()
+        pressLeanYSpring.cancel()
+        val moved = pressLift.value != 0f || pressLeanX.value != 0f || pressLeanY.value != 0f
+        pressLift.value = 0f
+        pressLeanX.value = 0f
+        pressLeanY.value = 0f
+        if (moved) applyPress()
+    }
+
+    private fun springTo(anim: SpringAnimation, target: Float, damping: Float, stiffness: Float) {
+        anim.spring.setDampingRatio(damping).setStiffness(stiffness)
+        anim.animateToFinalPosition(target)
+    }
+
+    private fun applyPress() {
+        val reach = dp(PRESS_REACH_DP).toFloat()
+        val l = pressLift.value
+        val ox = pressLeanX.value
+        val oy = pressLeanY.value
+        val stretchX = abs(ox) / reach * PRESS_STRETCH
+        val stretchY = abs(oy) / reach * PRESS_STRETCH
+        val lift = if (expanded) PRESS_LIFT_EXPANDED else PRESS_LIFT
+        scaleX = 1f + lift * l + stretchX - stretchY * 0.5f
+        scaleY = 1f + lift * l + stretchY - stretchX * 0.5f
+        translationX = ox
+        translationY = oy
+    }
+
+    // endregion
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         if (expanded || pages.size < 2) return false
@@ -625,6 +708,8 @@ class NowBarView(
                 val dx = ev.x - downX
                 val dy = ev.y - downY
                 if (abs(dx) > touchSlop && abs(dx) > abs(dy) * 1.5f) {
+                    // The page swipe moves the bar itself; drop the press first.
+                    resetPress()
                     swiping = true
                     parent?.requestDisallowInterceptTouchEvent(true)
                     return true
@@ -660,8 +745,8 @@ class NowBarView(
         currentPage = pages[(index + step + pages.size) % pages.size]
         (parent as? ViewGroup)?.let {
             TransitionManager.beginDelayedTransition(it, ChangeBounds().apply {
-                duration = 320
-                interpolator = EMPHASIZED
+                duration = 380
+                interpolator = SPRING
             })
         }
         refresh()
@@ -847,11 +932,27 @@ class NowBarView(
         showAnimated()
     }
 
-    /** Pops in: rises, grows and fades in with a little overshoot. */
+    // The pop-in runs on springs (scale and rise) so it settles with a soft bounce.
+    private val showSprings =
+        listOf(DynamicAnimation.SCALE_X, DynamicAnimation.SCALE_Y, DynamicAnimation.TRANSLATION_Y)
+            .map { property ->
+                SpringAnimation(this, property).apply {
+                    spring =
+                        SpringForce().setDampingRatio(SHOW_DAMPING).setStiffness(SHOW_STIFFNESS)
+                }
+            }
+
+    private fun showSpringsRunning() = showSprings.any { it.isRunning }
+
+    private fun cancelShowSprings() = showSprings.forEach { it.cancel() }
+
+    /** Pops in: rises, grows and fades in, settling on a spring with a soft bounce. */
     private fun showAnimated() {
         if (shown && visibility == VISIBLE) return
         shown = true
         animate().cancel()
+        cancelShowSprings()
+        resetPress()
         val wasHidden = visibility != VISIBLE
         visibility = VISIBLE
         if (!isAttachedToWindow || dozing) {
@@ -865,11 +966,14 @@ class NowBarView(
             translationY = dp(18).toFloat()
         }
         animate()
-            .alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+            .alpha(1f)
             .setStartDelay(0)
-            .setDuration(520)
-            .setInterpolator(OvershootInterpolator(1.15f))
+            .setDuration(260)
+            .setInterpolator(EMPHASIZED_DECEL)
             .start()
+        showSprings[0].animateToFinalPosition(1f)
+        showSprings[1].animateToFinalPosition(1f)
+        showSprings[2].animateToFinalPosition(0f)
     }
 
     /** Sinks, shrinks and fades out, then leaves the layout. */
@@ -877,6 +981,8 @@ class NowBarView(
         if (!shown && visibility != VISIBLE) return
         shown = false
         animate().cancel()
+        cancelShowSprings()
+        resetPress()
         if (instant || !isShown) {
             visibility = GONE
             resetShowState()
@@ -1092,11 +1198,35 @@ class NowBarView(
         private const val NOW_BAR_KEY = "system:" + Settings.System.NOW_BAR_ENABLED
         private const val NOW_BAR_STYLE_KEY = "system:" + Settings.System.NOW_BAR_STYLE
         private const val PROGRESS_INTERVAL_MS = 500L
-        private const val MORPH_MS = 460L
+        private const val MORPH_MS = 520L
         private const val BIG_ICON_SCALE = 1.4f
 
         // Material 3 emphasized motion curves.
-        private val EMPHASIZED = PathInterpolator(0.2f, 0f, 0f, 1f)
+        /**
+         * A critically-ish damped spring as a time curve (damping 0.8, settled by the end), so
+         * the transitions land with the same feel as the press and the pop-in.
+         */
+        private val SPRING =
+            android.animation.TimeInterpolator { t ->
+                val zeta = 0.8f
+                val omega = 7.8f
+                val wd = omega * kotlin.math.sqrt(1f - zeta * zeta)
+                val decay = kotlin.math.exp(-zeta * omega * t)
+                1f - decay * (kotlin.math.cos(wd * t) + zeta * omega / wd * kotlin.math.sin(wd * t))
+            }
+
+        // Glass press (PenguinOS' LiquidGlass.kt numbers, a gentler lift for a wide bar).
+        private const val PRESS_LIFT = 0.03f
+        private const val PRESS_LIFT_EXPANDED = 0.015f
+        private const val PRESS_REACH_DP = 10
+        private const val PRESS_STRETCH = 0.035f
+        private const val PRESS_DAMPING = 0.62f
+        private const val PRESS_STIFFNESS = 520f
+        private const val RELEASE_DAMPING = 0.38f
+        private const val RELEASE_STIFFNESS = 400f
+
+        private const val SHOW_DAMPING = 0.72f
+        private const val SHOW_STIFFNESS = 320f
         private val EMPHASIZED_DECEL = PathInterpolator(0.05f, 0.7f, 0.1f, 1f)
         private val EMPHASIZED_ACCEL = PathInterpolator(0.3f, 0f, 0.8f, 0.15f)
 

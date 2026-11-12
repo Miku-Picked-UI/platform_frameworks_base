@@ -51,21 +51,18 @@ class PinKeyGlass(private val view: View) {
         val drawable =
             blur
                 ?: view.viewRootImpl?.createBackgroundBlurDrawable()?.also {
-                    // Clear what the bouncer drew below the key (its dimming scrim), as a glass
-                    // slab does: drawn over it, the scrim sat on top of SurfaceFlinger's glass
-                    // and washed out the lens and edges, leaving a plain blurred circle.
+                    // Drawn over the bouncer's scrim, like the Quick Settings tiles' glass:
+                    // clearing it showed the wallpaper undimmed and oversaturated in each key.
+                    it.setXfermode(null)
                     it.setColor(0)
                     blur = it
                 }
                 ?: return
         drawable.setVisible(true, false)
-        // The keys keep a glass blur of their own: following the bouncer's backdrop (the shade
-        // blur strength, often turned down to keep the shade smooth) left them a nearly clear
-        // circle. Off only when the user turned the shade blur off altogether.
-        val shadeBlur = com.android.systemui.statusbar.ShadeBlur
-        val radius =
-            if (shadeBlur.scale() <= 0f) 0
-            else maxOf(shadeBlur.glassRegionRadius(BLUR_RADIUS), MIN_GLASS_RADIUS)
+        // The backdrop's radius, like the Quick Settings tiles: SurfaceFlinger then draws the
+        // keys as clear glass (lens and lit edge) over the lightly blurred bouncer. A heavier
+        // blur of their own made them frosted, blurry blobs.
+        val radius = com.android.systemui.statusbar.ShadeBlur.glassRegionRadius(BLUR_RADIUS)
         if (radius <= 0) {
             drawable.setVisible(false, false)
             return
@@ -181,7 +178,6 @@ class PinKeyGlass(private val view: View) {
 
     companion object {
         private const val BLUR_RADIUS = 90
-        private const val MIN_GLASS_RADIUS = 60
 
         // PenguinOS' glass press (LiquidGlass.kt): 6 % lift, 10 dp lean reach, 3.5 % stretch,
         // PressSpring (0.62, 520) and releaseSpring (0.38, StiffnessMediumLow).
