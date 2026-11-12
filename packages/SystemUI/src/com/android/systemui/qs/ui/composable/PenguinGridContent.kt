@@ -27,6 +27,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -537,7 +539,10 @@ private fun ExpandedSheet(
         Box(
             Modifier.fillMaxWidth()
                 .padding(horizontal = horizontalMargin)
-                .onGloballyPositioned { sheetBounds = it.boundsInRoot() }
+                .onGloballyPositioned {
+                    sheetBounds = it.boundsInRoot()
+                    PenguinSheetBounds.rect = sheetBounds
+                }
                 .graphicsLayer {
                     val f = progress()
                     val from = PenguinGridOrigin.bounds
@@ -612,6 +617,39 @@ internal fun PenguinGridTheme(content: @Composable () -> Unit) {
 internal fun closeExpansions() {
     ConnectivityFolderExpansion.expanded = false
     PenguinMediaExpansion.expanded = false
+}
+
+/** Where the open expanded sheet (connectivity folder or media) is, in root coordinates. */
+private object PenguinSheetBounds {
+    var rect: Rect? = null
+}
+
+/**
+ * Miku-Picked UI: closes an open expanded sheet when a tap lands anywhere outside it. In
+ * PenguinOS the shade overlay does that; in QSFragmentCompose the only catcher was the grid's
+ * own area, which the sheet covers, so a sheet stayed open until the panel was closed. Put on
+ * the root of Quick Settings so all of it counts; the tap only closes the sheet.
+ */
+fun Modifier.closePenguinSheetsOnOutsideTap(): Modifier {
+    var coordinates: androidx.compose.ui.layout.LayoutCoordinates? = null
+    return onGloballyPositioned { coordinates = it }
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                val down =
+                    awaitFirstDown(
+                        requireUnconsumed = false,
+                        pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial,
+                    )
+                if (!ConnectivityFolderExpansion.expanded && !PenguinMediaExpansion.expanded) {
+                    return@awaitEachGesture
+                }
+                val at = coordinates?.takeIf { it.isAttached }?.localToRoot(down.position)
+                val sheet = PenguinSheetBounds.rect
+                if (at != null && sheet != null && sheet.contains(at)) return@awaitEachGesture
+                down.consume()
+                closeExpansions()
+            }
+        }
 }
 
 @Composable

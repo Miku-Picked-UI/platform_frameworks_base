@@ -144,6 +144,7 @@ import com.android.systemui.qs.composefragment.ui.toEditMode
 import com.android.systemui.qs.composefragment.viewmodel.QSFragmentComposeViewModel
 import com.android.systemui.qs.flags.QSComposeFragment
 import com.android.systemui.qs.footer.ui.compose.FooterActions
+import com.android.systemui.qs.ui.composable.closePenguinSheetsOnOutsideTap
 import com.android.systemui.qs.ui.composable.PenguinGridQuickSettings
 import com.android.systemui.qs.panels.shared.model.QSFragmentComposeClippingTableLog
 import com.android.systemui.qs.panels.ui.compose.EditMode
@@ -339,6 +340,8 @@ constructor(
                                 }
                             }
                             .graphicsLayer { alpha = viewModel.viewAlpha }
+                            // [PenguinOS] Control Centre: a tap outside an open sheet closes it.
+                            .closePenguinSheetsOnOutsideTap()
                             .thenIf(!Flags.notificationShadeBlur()) {
                                 Modifier.offset {
                                     IntOffset(
