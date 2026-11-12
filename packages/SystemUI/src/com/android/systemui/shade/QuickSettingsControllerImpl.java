@@ -1667,6 +1667,10 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                     }
                 } else {
                     top = (int) notificationTop;
+                    // [Miku-Picked UI] Never clip notifications above the bottom of the shade's
+                    // clock header: without QQS tiles the stack's edge sits under the status
+                    // bar, so scrolled notifications were drawn over the clock and date.
+                    top = Math.max(top, pickedShadeHeaderBottom());
                 }
             }
             // TODO (b/265193930): remove dependency on NPVC
@@ -1680,6 +1684,20 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             }
         }
         return top;
+    }
+
+    private final int[] mPickedHeaderLocation = new int[2];
+
+    /** The bottom of the shade header (clock, date, icons) in window coordinates, or 0. */
+    private int pickedShadeHeaderBottom() {
+        final View header = mPanelView.findViewById(R.id.split_shade_status_bar);
+        if (header == null || header.getVisibility() != View.VISIBLE || header.getAlpha() == 0f) {
+            return 0;
+        }
+        header.getLocationInWindow(mPickedHeaderLocation);
+        final int[] panel = new int[2];
+        mPanelView.getLocationInWindow(panel);
+        return mPickedHeaderLocation[1] - panel[1] + header.getHeight();
     }
 
     private int calculateBottomClippingBound(int top) {
