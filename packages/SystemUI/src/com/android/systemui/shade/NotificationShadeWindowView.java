@@ -178,7 +178,7 @@ public class NotificationShadeWindowView extends WindowRootView {
                         mPickedTopPull = PICKED_SWITCH_NONE;
                         mPickedSwitch = PICKED_SWITCH_DONE;
                         pickedCancelChildren(ev);
-                        QuickSettingsControllerImpl.pickedSwitchPanels(toQs);
+                        QuickSettingsControllerImpl.pickedSwitchPanels(toQs, true /* fromTop */);
                         return true;
                     }
                 }
@@ -194,7 +194,7 @@ public class NotificationShadeWindowView extends WindowRootView {
                     mPickedSwitch = PICKED_SWITCH_DONE;
                     mPickedTopPull = PICKED_SWITCH_NONE;
                     pickedCancelChildren(ev);
-                    QuickSettingsControllerImpl.pickedSwitchPanels(toQs);
+                    QuickSettingsControllerImpl.pickedSwitchPanels(toQs, false /* fromTop */);
                     return true;
                 }
                 return false;
