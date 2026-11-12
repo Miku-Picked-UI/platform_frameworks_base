@@ -129,6 +129,8 @@ fun BrightnessSlider(
     modifier: Modifier = Modifier,
     showToast: () -> Unit = {},
     hapticsViewModelFactory: SliderHapticsViewModel.Factory,
+    // [PenguinOS] Liquid Glass: a white fill on a glass track, the icons in this accent.
+    glassAccent: Color? = null,
 ) {
     var value by remember(gammaValue) { mutableIntStateOf(gammaValue) }
     val animatedValue by
@@ -150,7 +152,18 @@ fun BrightnessSlider(
                 SeekableSliderTrackerConfig(),
             )
         }
-    val colors = colors()
+    val colors =
+        colors().let { base ->
+            if (glassAccent == null) base
+            else
+                base.copy(
+                    thumbColor = Color.White,
+                    activeTrackColor = Color.White,
+                    inactiveTrackColor = com.android.systemui.qs.shared.style.LiquidGlassControl,
+                    activeTickColor = glassAccent,
+                    inactiveTickColor = Color.White,
+                )
+        }
 
     // The value state is recreated every time gammaValue changes, so we recreate this derivedState
     // We have to use value as that's the value that changes when the user is dragging (gammaValue
@@ -358,6 +371,7 @@ fun BrightnessSliderContainer(
     viewModel: BrightnessSliderViewModel,
     modifier: Modifier = Modifier,
     containerColors: ContainerColors,
+    glassAccent: Color? = null,
 ) {
     val gamma = viewModel.currentBrightness.value
     if (gamma == BrightnessSliderViewModel.initialValue.value) { // Ignore initial negative value.
@@ -391,6 +405,7 @@ fun BrightnessSliderContainer(
                 .sysuiResTag("brightness_slider")
     ) {
         BrightnessSlider(
+            glassAccent = glassAccent,
             gammaValue = gamma,
             valueRange = viewModel.minBrightness.value..viewModel.maxBrightness.value,
             iconResProvider = BrightnessSliderViewModel::getIconForPercentage,

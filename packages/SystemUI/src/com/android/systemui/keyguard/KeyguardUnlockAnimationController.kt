@@ -43,6 +43,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.flags.FeatureFlags
 import com.android.systemui.flags.Flags
+import com.android.systemui.picked.clockfly.ClockFlyHandoff
 import com.android.systemui.plugins.BcSmartspaceDataPlugin
 import com.android.systemui.shared.recents.utilities.Utilities
 import com.android.systemui.shared.system.ActivityManagerWrapper
@@ -164,7 +165,11 @@ constructor(
     private val notificationShadeWindowController: NotificationShadeWindowController,
     private val powerManager: PowerManager,
     private val wallpaperManager: WallpaperManager,
+    private val clockFly: Lazy<ClockFlyHandoff>,
 ) : KeyguardStateController.Callback, ISysuiUnlockAnimationController.Stub() {
+
+    /** Miku-Picked UI: the lockscreen clock goes to the launcher's clock widget this unlock. */
+    private var handingOffClock = false
 
     interface KeyguardUnlockAnimationListener {
         /**
@@ -562,13 +567,23 @@ constructor(
         }
 
         // Currently selected lockscreen smartspace page, or -1 if it's not available.
-        val selectedPage =
+        var selectedPage =
             (lockscreenSmartspace as BcSmartspaceDataPlugin.SmartspaceView?)?.selectedPage ?: -1
+
+        // Miku-Picked UI: hand the lockscreen clock to the launcher instead, which flies it onto
+        // its clock widget. The last argument then says whether the clock is large (0) or small.
+        val clockHandoff = runCatching { clockFly.get().handoff() }.getOrNull()
+        handingOffClock = clockHandoff != null
+        if (clockHandoff != null) {
+            willUnlockWithSmartspaceTransition = false
+            lockscreenSmartspaceBounds = clockHandoff.bounds
+            selectedPage = clockHandoff.fontHeight
+        }
 
         try {
             // Let the launcher know to prepare for this animation.
             launcherUnlockController?.prepareForUnlock(
-                willUnlockWithSmartspaceTransition, /* willAnimateSmartspace */
+                willUnlockWithSmartspaceTransition || handingOffClock, /* willAnimateSmartspace */
                 lockscreenSmartspaceBounds, /* lockscreenSmartspaceBounds */
                 selectedPage, /* selectedPage */
             )
@@ -639,6 +654,7 @@ constructor(
                         UNLOCK_ANIMATION_DURATION_MS + CANNED_UNLOCK_START_DELAY_MS,
                         0, /* startDelay */
                     )
+                    if (handingOffClock) clockFly.get().hide()
                 } catch (e: DeadObjectException) {
                     // Hello! If you are here investigating a bug where Launcher is blank (no icons)
                     // then the below assumption about Launcher's destruction was incorrect. This
@@ -751,6 +767,8 @@ constructor(
                 LAUNCHER_ICONS_ANIMATION_DURATION_MS /* duration */,
                 CANNED_UNLOCK_START_DELAY_MS, /* startDelay */
             )
+            // Miku-Picked UI: the launcher now draws the clock; take ours away.
+            if (handingOffClock) clockFly.get().hide()
         } catch (e: DeadObjectException) {
             // Hello! If you are here investigating a bug where Launcher is blank (no icons)
             // then the below assumption about Launcher's destruction was incorrect. This
@@ -1079,6 +1097,12 @@ constructor(
         // The lockscreen surface is gone, so it is now safe to re-show the smartspace.
         if (lockscreenSmartspace?.visibility == View.INVISIBLE) {
             lockscreenSmartspace?.visibility = View.VISIBLE
+        }
+
+        // Miku-Picked UI: and the lockscreen clock handed to the launcher.
+        if (handingOffClock) {
+            handingOffClock = false
+            clockFly.get().restore()
         }
 
         if (!showKeyguard) {

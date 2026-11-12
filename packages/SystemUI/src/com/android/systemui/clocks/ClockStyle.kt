@@ -44,6 +44,16 @@ class ClockStyle @JvmOverloads constructor(
     private val random = java.util.Random()
 
     private var currentClockView: View? = null
+
+    /**
+     * Miku-Picked UI: a copy drawn for the home screen clock widget (see HomeClockRenderer). It
+     * stays awake (no doze), and is not offered as the lockscreen clock to fly home.
+     */
+    var forHome = false
+
+    /** The clock face currently shown, or null for the stock clock (style 0). */
+    val clockView: View?
+        get() = currentClockView
     private var clockStub: ViewStub? = null
     private var clockContainer: ViewGroup? = null
 
@@ -121,6 +131,7 @@ class ClockStyle @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        if (!forHome && !attached.contains(this)) attached.add(this)
         if (callbacksRegistered) return
 
         tunerService.addTunable(
@@ -133,9 +144,9 @@ class ClockStyle @JvmOverloads constructor(
             CLOCK_SIZE_KEY,
             CLOCK_AOD_ANIM_KEY,
         )
-        statusBarStateController.addCallback(statusBarStateListener)
+        if (!forHome) statusBarStateController.addCallback(statusBarStateListener)
 
-        isDozing = statusBarStateController.isDozing
+        isDozing = !forHome && statusBarStateController.isDozing
         if (isDozing) {
             applyClockAlpha()
             applyClockColors()
@@ -155,6 +166,7 @@ class ClockStyle @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        attached.remove(this)
         if (!callbacksRegistered) return
 
         statusBarStateController.removeCallback(statusBarStateListener)
@@ -527,6 +539,12 @@ class ClockStyle @JvmOverloads constructor(
     private fun isNoColorClock(style: Int): Boolean = NO_COLOR_CLOCKS.contains(style)
 
     companion object {
+        private val attached = ArrayList<ClockStyle>()
+
+        /** Miku-Picked UI: the lockscreen clock style view on screen now, if a style is on. */
+        @JvmStatic
+        fun showing(): ClockStyle? = attached.firstOrNull { it.isShown && it.clockView != null }
+
         private val CLOCK_LAYOUTS = intArrayOf(
             0,
             R.layout.keyguard_clock_oos,            // 1

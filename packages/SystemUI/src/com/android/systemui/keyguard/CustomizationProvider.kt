@@ -36,6 +36,7 @@ import com.android.systemui.application.ContentProviderContextInitializer
 import com.android.systemui.biometrics.domain.interactor.FingerprintPropertyInteractor
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.keyguard.domain.interactor.KeyguardQuickAffordanceInteractor
+import com.android.systemui.picked.clockfly.HomeClockRenderer
 import com.android.systemui.keyguard.ui.preview.KeyguardRemotePreviewManager
 import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.shared.customization.data.content.CustomizationProviderContract as Contract
@@ -48,6 +49,7 @@ class CustomizationProvider : ContentProvider(), ContentProviderContextInitializ
     @Inject lateinit var shadeModeInteractor: ShadeModeInteractor
     @Inject lateinit var fingerprintPropertyInteractor: FingerprintPropertyInteractor
     @Inject lateinit var previewManager: KeyguardRemotePreviewManager
+    @Inject lateinit var homeClockRenderer: dagger.Lazy<HomeClockRenderer>
     @Inject @Main lateinit var mainDispatcher: CoroutineDispatcher
 
     private lateinit var contextAvailableCallback: ContentProviderContextAvailableCallback
@@ -182,6 +184,18 @@ class CustomizationProvider : ContentProvider(), ContentProviderContextInitializ
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        // Miku-Picked UI: the launcher's lockscreen clock widget (see HomeClockRenderer). The
+        // launcher is privileged but not platform signed, so check the permission it holds.
+        if (method == HomeClockRenderer.METHOD) {
+            val trusted =
+                requireContext()
+                    .checkPermission(
+                        "android.permission.CUSTOMIZE_SYSTEM_UI",
+                        Binder.getCallingPid(),
+                        Binder.getCallingUid(),
+                    ) == PackageManager.PERMISSION_GRANTED
+            return if (trusted && extras != null) homeClockRenderer.get().open(extras) else null
+        }
         return if (
             requireContext()
                 .checkPermission(

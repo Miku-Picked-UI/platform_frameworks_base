@@ -250,8 +250,21 @@ public class NotificationBackgroundView extends View implements Dumpable,
         return LiquidGlass.isEnabled(getContext());
     }
 
+    private static boolean onKeyguard() {
+        try {
+            return com.android.systemui.Dependency.get(
+                    com.android.systemui.plugins.statusbar.StatusBarStateController.class)
+                    .getState() == com.android.systemui.statusbar.StatusBarState.KEYGUARD;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     private void drawGlassBehind(Canvas canvas, Rect bounds) {
-        if (!glassOn() || bounds == null || bounds.isEmpty() || mDrawableAlpha == 0) {
+        // Only on the lockscreen, as PenguinOS does: in the shade the backdrop already blurs,
+        // and a blur region per card that moves with every scroll frame made the shade stutter.
+        if (!glassOn() || bounds == null || bounds.isEmpty() || mDrawableAlpha == 0
+                || !onKeyguard()) {
             if (mGlassBlur != null) mGlassBlur.setVisible(false, false);
             return;
         }
@@ -262,7 +275,14 @@ public class NotificationBackgroundView extends View implements Dumpable,
             mGlassBlur.setColor(0);
         }
         mGlassBlur.setVisible(true, false);
-        mGlassBlur.setBlurRadius(GLASS_BLUR_RADIUS);
+        // The shade's own radius while it blurs, so SurfaceFlinger reuses that blur pass.
+        final int glassRadius =
+                com.android.systemui.statusbar.ShadeBlur.glassRegionRadius(GLASS_BLUR_RADIUS);
+        if (glassRadius <= 0) {
+            mGlassBlur.setVisible(false, false);
+            return;
+        }
+        mGlassBlur.setBlurRadius(glassRadius);
         mGlassBlur.setCornerRadius(mCornerRadii[0], mCornerRadii[2], mCornerRadii[6],
                 mCornerRadii[4]);
         mGlassBlur.setAlpha(mDrawableAlpha);
@@ -358,8 +378,9 @@ public class NotificationBackgroundView extends View implements Dumpable,
         Drawable baseLayer = getBaseBackgroundLayer();
         // [PenguinOS] Under Liquid Glass the default surface is a light glass tint; colored
         // notifications keep their color.
+        // A frosted, readable card (PenguinOS' lockscreen glass surface) over the glass.
         final int drawColor = tintColor == mNormalColor && glassOn()
-                ? LiquidGlass.viewSurface() : tintColor;
+                ? LiquidGlass.lockscreenSurface() : tintColor;
         if (drawColor != tintColor && baseLayer instanceof GradientDrawable) {
             baseLayer.mutate().setTintList(null);
             ((GradientDrawable) baseLayer.mutate()).setColor(drawColor);

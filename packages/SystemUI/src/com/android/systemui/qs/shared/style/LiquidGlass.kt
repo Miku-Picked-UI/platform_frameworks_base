@@ -423,8 +423,16 @@ object LiquidGlass {
         rimPath.reset()
         rimPath.addRoundRect(rimRect, rimRadii, android.graphics.Path.Direction.CW)
         rimPaint.strokeWidth = width
-        rimPaint.shader =
-            rimShader(rect.left, rect.top, rect.right, rect.bottom, LiquidGlassTune.f("view_rim", 0.9f))
+        // Miku-Picked UI: the rim is an even hairline, so a solid color instead of a new
+        // gradient shader per call (this ran for every notification card on every scroll frame).
+        rimPaint.shader = null
+        rimPaint.color =
+            android.graphics.Color.argb(
+                LiquidGlassTune.f("rim_mid", 0.32f) * LiquidGlassTune.f("view_rim", 0.9f),
+                1f,
+                1f,
+                1f,
+            )
         drawRoundRectStroke(canvas, rimRect, rimRadii, rimPaint)
     }
 
@@ -883,7 +891,16 @@ fun Modifier.glassBlurRegion(shape: Shape, material: Int = 0): Modifier {
                         }
                 blur.setVisible(true, false)
                 blur.setColor(0)
-                blur.setBlurRadius(radius)
+                // Miku-Picked UI: the shade's own radius while it blurs, so SurfaceFlinger reuses
+                // that blur pass instead of blurring the screen again for every glass tile.
+                val regionRadius =
+                    if (material == 0) com.android.systemui.statusbar.ShadeBlur.glassRegionRadius(radius)
+                    else radius
+                if (regionRadius <= 0) {
+                    blur.setVisible(false, false)
+                    return@onDrawBehind
+                }
+                blur.setBlurRadius(regionRadius)
                 blur.setCornerRadius(minOf(corner, shown.height / 2f))
                 blur.setAlpha((alpha * 255).toInt())
                 blur.setBounds(

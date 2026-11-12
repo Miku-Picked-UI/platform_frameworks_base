@@ -108,10 +108,126 @@ public class NotificationShadeWindowView extends WindowRootView {
         mInteractionEventHandler = listener;
     }
 
+    // [Miku-Picked UI] One UI-style panel switch: on the open shade, a horizontal swipe from
+    // right to left that does not start on a notification opens Quick Settings, and on Quick
+    // Settings a swipe from left to right that starts above or below the tiles (where it can't
+    // be a tile page swipe) goes back to the notifications.
+    private static final int PICKED_SWITCH_NONE = 0;
+    private static final int PICKED_SWITCH_TO_QS = 1;
+    private static final int PICKED_SWITCH_TO_NOTIFICATIONS = 2;
+    private static final int PICKED_SWITCH_DONE = 3;
+    private int mPickedSwitch = PICKED_SWITCH_NONE;
+    private float mPickedDownX;
+    private float mPickedDownY;
+    // One UI: with the split shade open, pulling down from the top edge on the other panel's
+    // side (right for Quick Settings, left for the notifications; mirrored in RTL) switches.
+    private int mPickedTopPull = PICKED_SWITCH_NONE;
+    private static final float PICKED_QS_EMPTY_RADIUS_PX = 200f;
+
+    private int pickedTopPullTarget(MotionEvent ev) {
+        if (!QuickSettingsControllerImpl.pickedIsSplitPanels()) return PICKED_SWITCH_NONE;
+        final float topZone = 72 * getResources().getDisplayMetrics().density;
+        if (ev.getY() > topZone) return PICKED_SWITCH_NONE;
+        final boolean right = ev.getX() > getWidth() / 2f;
+        final boolean toQs = right != isLayoutRtl();
+        if (!QuickSettingsControllerImpl.pickedCanSwitchPanels(toQs)) return PICKED_SWITCH_NONE;
+        return toQs ? PICKED_SWITCH_TO_QS : PICKED_SWITCH_TO_NOTIFICATIONS;
+    }
+
+    private void pickedCancelChildren(MotionEvent ev) {
+        // Let the views that saw the start of the gesture give it up.
+        final MotionEvent cancel = MotionEvent.obtain(ev);
+        cancel.setAction(MotionEvent.ACTION_CANCEL);
+        super.dispatchTouchEvent(cancel);
+        cancel.recycle();
+    }
+
+    private boolean pickedPanelSwitch(MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN: {
+                mPickedDownX = ev.getRawX();
+                mPickedDownY = ev.getRawY();
+                mPickedSwitch = PICKED_SWITCH_NONE;
+                mPickedTopPull = pickedTopPullTarget(ev);
+                if (QuickSettingsControllerImpl.pickedCanSwitchPanels(true)
+                        && !pickedTouchOnNotification(ev)) {
+                    mPickedSwitch = PICKED_SWITCH_TO_QS;
+                } else if (QuickSettingsControllerImpl.pickedCanSwitchPanels(false)) {
+                    // Only from empty space: nothing in Quick Settings within ~200 px, so the
+                    // swipe can't have been meant for a tile, slider or page.
+                    final View qs = findViewById(com.android.systemui.res.R.id.qs_frame);
+                    if (!PickedQsHitTest.isNearControl(qs, ev.getX(), ev.getY(),
+                            PICKED_QS_EMPTY_RADIUS_PX)) {
+                        mPickedSwitch = PICKED_SWITCH_TO_NOTIFICATIONS;
+                    }
+                }
+                return false;
+            }
+            case MotionEvent.ACTION_MOVE: {
+                if (mPickedSwitch == PICKED_SWITCH_DONE) return true;
+                final float dx = ev.getRawX() - mPickedDownX;
+                final float dy = ev.getRawY() - mPickedDownY;
+                final float slop = android.view.ViewConfiguration.get(getContext())
+                        .getScaledTouchSlop();
+                if (mPickedTopPull != PICKED_SWITCH_NONE) {
+                    final float pull = 40 * getResources().getDisplayMetrics().density;
+                    if (dy < -slop || Math.abs(dx) > Math.max(dy, slop) * 1.5f) {
+                        mPickedTopPull = PICKED_SWITCH_NONE; // not a pull down
+                    } else if (dy > pull) {
+                        final boolean toQs = mPickedTopPull == PICKED_SWITCH_TO_QS;
+                        mPickedTopPull = PICKED_SWITCH_NONE;
+                        mPickedSwitch = PICKED_SWITCH_DONE;
+                        pickedCancelChildren(ev);
+                        QuickSettingsControllerImpl.pickedSwitchPanels(toQs);
+                        return true;
+                    }
+                }
+                if (mPickedSwitch == PICKED_SWITCH_NONE) return false;
+                if (Math.abs(dy) > slop && Math.abs(dy) > Math.abs(dx)) {
+                    mPickedSwitch = PICKED_SWITCH_NONE; // a vertical gesture: leave it alone
+                    return false;
+                }
+                final float distance = 48 * getResources().getDisplayMetrics().density;
+                final boolean toQs = mPickedSwitch == PICKED_SWITCH_TO_QS;
+                if (Math.abs(dx) > distance && Math.abs(dx) > 2 * Math.abs(dy)
+                        && (toQs ? dx < 0 : dx > 0)) {
+                    mPickedSwitch = PICKED_SWITCH_DONE;
+                    mPickedTopPull = PICKED_SWITCH_NONE;
+                    pickedCancelChildren(ev);
+                    QuickSettingsControllerImpl.pickedSwitchPanels(toQs);
+                    return true;
+                }
+                return false;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                final boolean swallow = mPickedSwitch == PICKED_SWITCH_DONE;
+                mPickedSwitch = PICKED_SWITCH_NONE;
+                mPickedTopPull = PICKED_SWITCH_NONE;
+                return swallow;
+            }
+            default:
+                return mPickedSwitch == PICKED_SWITCH_DONE;
+        }
+    }
+
+    private boolean pickedTouchOnNotification(MotionEvent ev) {
+        final View stack = findViewById(com.android.systemui.res.R.id.notification_stack_scroller);
+        if (!(stack instanceof com.android.systemui.statusbar.notification.stack
+                .NotificationStackScrollLayout nssl)) {
+            return false;
+        }
+        return nssl.getChildAtRawPosition(ev.getRawX(), ev.getRawY()) != null;
+    }
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         // Miku-Picked UI: a tap outside the Now Bar's open large player only closes it.
         if (com.android.systemui.picked.nowbar.NowBarView.consumeOutsideTouch(ev)) {
+            return true;
+        }
+        // Miku-Picked UI: One UI-style switch between notifications and Quick Settings.
+        if (pickedPanelSwitch(ev)) {
             return true;
         }
         Boolean result = mInteractionEventHandler.handleDispatchTouchEvent(ev);

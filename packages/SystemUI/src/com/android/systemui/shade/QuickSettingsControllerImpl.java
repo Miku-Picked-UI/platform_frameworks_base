@@ -422,6 +422,105 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         dumpManager.registerDumpable(this);
 
         mWindowManagerProvider = windowManagerProvider;
+        sPickedInstance = new java.lang.ref.WeakReference<>(this);
+    }
+
+    // [Miku-Picked UI] One UI-style switching between the notifications and Quick Settings with
+    // a horizontal swipe (see NotificationShadeWindowView).
+    private static volatile java.lang.ref.WeakReference<QuickSettingsControllerImpl>
+            sPickedInstance;
+
+    /**
+     * Whether the shade is fully open on the notifications ({@code toQs}) or on Quick Settings
+     * (otherwise), so a horizontal swipe can switch to the other one.
+     */
+    static boolean pickedCanSwitchPanels(boolean toQs) {
+        final QuickSettingsControllerImpl qs = sPickedInstance != null ? sPickedInstance.get() : null;
+        if (qs == null || qs.mSplitShadeEnabled || !qs.isExpansionEnabled()) return false;
+        if (qs.mBarState == KEYGUARD || qs.mShadeExpandedFraction < 1f) return false;
+        if (qs.mPickedSwitchAnimator != null) return false;
+        return toQs != qs.getExpanded();
+    }
+
+    /** Whether the split shade (QS and notifications as separate panels) is in effect. */
+    static boolean pickedIsSplitPanels() {
+        final QuickSettingsControllerImpl qs = sPickedInstance != null ? sPickedInstance.get() : null;
+        return qs != null && qs.isLegacySplitShadeActive();
+    }
+
+    /** Switches to Quick Settings ({@code toQs}) or back to the notifications. */
+    static void pickedSwitchPanels(boolean toQs) {
+        final QuickSettingsControllerImpl qs = sPickedInstance != null ? sPickedInstance.get() : null;
+        if (qs == null || !pickedCanSwitchPanels(toQs)) return;
+        if (qs.isLegacySplitShadeActive()) {
+            qs.pickedSwitchSplitPanels(toQs);
+        } else {
+            qs.flingQs(0 /* vel */, toQs ? FLING_EXPAND : FLING_COLLAPSE);
+        }
+    }
+
+    // [Miku-Picked UI] One UI / ColorOS-style switch between the split shade's panels: the
+    // outgoing panel slides a little towards the side it leaves by, shrinks and fades while the
+    // other one comes in from the opposite side. Both stay visible only while it runs.
+    private static final long PICKED_SWITCH_DURATION_MS = 380;
+    private static final float PICKED_SWITCH_SHIFT = 0.12f;  // of the panel width
+    private static final float PICKED_SWITCH_SCALE = 0.94f;
+    private ValueAnimator mPickedSwitchAnimator;
+
+    private void pickedSwitchSplitPanels(boolean toQs) {
+        final View qsView = mQsFrame;
+        final View nssl = mNotificationStackScrollLayoutController.getView();
+        if (qsView == null || nssl == null) return;
+        final View in = toQs ? qsView : nssl;
+        final View out = toQs ? nssl : qsView;
+        // QS sits on the right (left in RTL), so it comes in from that side.
+        final boolean rtl = mPanelView.isLayoutRtl();
+        final float dir = (toQs != rtl) ? 1f : -1f;
+        final float shift = PICKED_SWITCH_SHIFT * Math.max(mPanelView.getWidth(), 1);
+
+        final ValueAnimator anim = ValueAnimator.ofFloat(0f, 1f);
+        mPickedSwitchAnimator = anim;
+        // Both panels stay drawn while mPickedSwitchAnimator is set (updateQsState()), which
+        // hides the outgoing one at the end.
+        setExpandImmediate(false);
+        mNotificationStackScrollLayoutController.setShouldShowShelfOnly(toQs);
+        if (toQs) setListening(true);
+        setExpanded(toQs);
+        updateExpansion();
+        pickedApplySwitch(in, out, 0f, dir, shift);
+        anim.setDuration(PICKED_SWITCH_DURATION_MS);
+        anim.setInterpolator(Interpolators.EMPHASIZED_DECELERATE);
+        anim.addUpdateListener(a ->
+                pickedApplySwitch(in, out, (float) a.getAnimatedValue(), dir, shift));
+        anim.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                for (View v : new View[] {in, out}) {
+                    v.setTranslationX(0f);
+                    v.setScaleX(1f);
+                    v.setScaleY(1f);
+                    v.setTransitionAlpha(1f);
+                }
+                mPickedSwitchAnimator = null;
+                updateQsState();
+            }
+        });
+        anim.start();
+    }
+
+    private static void pickedApplySwitch(View in, View out, float p, float dir, float shift) {
+        // The outgoing panel is gone by the first half, so the two never read on top of
+        // each other.
+        out.setTransitionAlpha(Math.max(0f, 1f - p * 2f));
+        out.setTranslationX(-dir * shift * p);
+        final float outScale = 1f - (1f - PICKED_SWITCH_SCALE) * p;
+        out.setScaleX(outScale);
+        out.setScaleY(outScale);
+        in.setTransitionAlpha(Math.min(1f, p * 1.4f));
+        in.setTranslationX(dir * shift * (1f - p));
+        final float inScale = PICKED_SWITCH_SCALE + (1f - PICKED_SWITCH_SCALE) * p;
+        in.setScaleX(inScale);
+        in.setScaleY(inScale);
     }
 
     @VisibleForTesting
@@ -1117,9 +1216,11 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         if (!legacySplitShade && !mLegacySplitShadeVisibilityApplied) return;
         mLegacySplitShadeVisibilityApplied = legacySplitShade;
         final boolean isQsVisible = isExpandImmediate() || getExpanded();
-        final int qsVisibility = !legacySplitShade || isQsVisible || mSwipeInProgress
+        final boolean switching = mPickedSwitchAnimator != null;
+        final int qsVisibility = !legacySplitShade || isQsVisible || mSwipeInProgress || switching
                 ? View.VISIBLE : View.INVISIBLE;
-        final int nsslVisibility = !legacySplitShade || !isQsVisible || mSwipeInProgress
+        final int nsslVisibility =
+                !legacySplitShade || !isQsVisible || mSwipeInProgress || switching
                 ? View.VISIBLE : View.INVISIBLE;
         if (mQsFrame != null && mQsFrame.getVisibility() != qsVisibility) {
             mQsFrame.setVisibility(qsVisibility);
@@ -1643,6 +1744,10 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                     }
                 } else {
                     top = (int) notificationTop;
+                    // [Miku-Picked UI] Never clip notifications above the bottom of the shade's
+                    // clock header: without QQS tiles the stack's edge sits under the status
+                    // bar, so scrolled notifications were drawn over the clock and date.
+                    top = Math.max(top, pickedShadeHeaderBottom());
                 }
             }
             // TODO (b/265193930): remove dependency on NPVC
@@ -1656,6 +1761,20 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             }
         }
         return top;
+    }
+
+    private final int[] mPickedHeaderLocation = new int[2];
+
+    /** The bottom of the shade header (clock, date, icons) in window coordinates, or 0. */
+    private int pickedShadeHeaderBottom() {
+        final View header = mPanelView.findViewById(R.id.split_shade_status_bar);
+        if (header == null || header.getVisibility() != View.VISIBLE || header.getAlpha() == 0f) {
+            return 0;
+        }
+        header.getLocationInWindow(mPickedHeaderLocation);
+        final int[] panel = new int[2];
+        mPanelView.getLocationInWindow(panel);
+        return mPickedHeaderLocation[1] - panel[1] + header.getHeight();
     }
 
     private int calculateBottomClippingBound(int top) {

@@ -58,7 +58,12 @@ class PinKeyGlass(private val view: View) {
                 }
                 ?: return
         drawable.setVisible(true, false)
-        drawable.setBlurRadius(BLUR_RADIUS)
+        val radius = com.android.systemui.statusbar.ShadeBlur.glassRegionRadius(BLUR_RADIUS)
+        if (radius <= 0) {
+            drawable.setVisible(false, false)
+            return
+        }
+        drawable.setBlurRadius(radius)
         drawable.setCornerRadius(cornerOf(background, b.height()))
         drawable.alpha = 255
         drawable.setBounds(b.left, b.top, b.right, b.bottom)

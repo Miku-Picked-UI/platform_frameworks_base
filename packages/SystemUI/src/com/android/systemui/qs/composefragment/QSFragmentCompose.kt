@@ -195,10 +195,42 @@ constructor(
         com.android.systemui.qs.shared.style.QsPanelStyleRepository,
     private val iconTilesViewModel:
         com.android.systemui.qs.panels.ui.viewmodel.IconTilesViewModel,
+    // [PenguinOS] Media volume slider under the brightness slider.
+    private val audioStreamSliderViewModelFactory:
+        com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel
+            .AudioStreamSliderViewModel.Factory,
 ) : LifecycleFragment(), QS, Dumpable {
 
     init {
         com.android.systemui.qs.shared.style.PenguinQsStyle.repository = qsPanelStyleRepository
+    }
+
+    private val qsVolumeSliderViewModel by lazy {
+        audioStreamSliderViewModelFactory.create(
+            com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel
+                .AudioStreamSliderViewModel.FactoryAudioStreamWrapper(
+                    com.android.systemui.volume.panel.component.volume.domain.model.SliderType
+                        .Stream(
+                            com.android.settingslib.volume.shared.model.AudioStream(
+                                android.media.AudioManager.STREAM_MUSIC
+                            )
+                        )
+                        .stream
+                ),
+            lifecycleScope,
+        )
+    }
+
+    /** Settings.System picked_qs_volume_slider (on by default). */
+    private fun qsVolumeSliderEnabled(): Boolean {
+        // android.app.Fragment has no requireContext(); without a context keep the default (on).
+        val resolver = context?.contentResolver ?: return true
+        return android.provider.Settings.System.getIntForUser(
+            resolver,
+            "picked_qs_volume_slider",
+            1,
+            android.os.UserHandle.USER_CURRENT,
+        ) != 0
     }
 
 
@@ -321,7 +353,20 @@ constructor(
                             // by the composables.
                             .thenIf(viewModel.showingMirror) { Modifier.gesturesDisabled() }
                 ) {
-                    CollapsableQuickSettingsSTL()
+                    // [Miku-Picked UI] The tiles' Liquid Glass is a SurfaceFlinger blur region,
+                    // which the view's own fade doesn't reach: without this it stayed on screen
+                    // at full strength while Quick Settings closed. Fade it with the panel (the
+                    // split shade also fades the QS frame with the shade's expansion).
+                    CompositionLocalProvider(
+                        com.android.systemui.qs.shared.style.LocalGlassBlurAlpha provides {
+                            viewModel.viewAlpha *
+                                com.android.systemui.animation.ShadeInterpolation.getContentAlpha(
+                                    (viewModel.panelExpansionFraction / 0.9f).coerceIn(0f, 1f)
+                                )
+                        }
+                    ) {
+                        CollapsableQuickSettingsSTL()
+                    }
                 }
             }
         }
@@ -893,6 +938,15 @@ constructor(
                                         BrightnessSliderContainer(
                                             viewModel =
                                                 containerViewModel.brightnessSliderViewModel,
+                                            // [PenguinOS] Liquid Glass slider.
+                                            glassAccent =
+                                                if (com.android.systemui.qs.shared.style
+                                                        .liquidGlassEnabled()) {
+                                                    com.android.systemui.qs.shared.style
+                                                        .LiquidGlassBrightness
+                                                } else {
+                                                    null
+                                                },
                                             containerColors =
                                                 ContainerColors(
                                                     Color.Transparent,
@@ -901,6 +955,12 @@ constructor(
                                             modifier = Modifier.fillMaxWidth(),
                                         )
                                     }
+                                }
+                                // [PenguinOS] The media volume slider, in the same Liquid Glass
+                                // two-tone look as the brightness slider.
+                                val volumeOn = remember { qsVolumeSliderEnabled() }
+                                if (volumeOn) {
+                                    QsVolumeSlider()
                                 }
                             }
                         val TileGrid =
@@ -997,6 +1057,39 @@ constructor(
                 }
             }
             Spacer(Modifier.height { bottomContentPadding }.fillMaxWidth())
+        }
+    }
+
+    @Composable
+    private fun QsVolumeSlider() {
+        val volumeViewModel = qsVolumeSliderViewModel
+        val state by volumeViewModel.slider.collectAsStateWithLifecycle()
+        val glass = com.android.systemui.qs.shared.style.liquidGlassEnabled()
+        AlwaysDarkMode {
+            com.android.systemui.volume.panel.component.volume.ui.composable.VolumeSlider(
+                modifier = Modifier.fillMaxWidth(),
+                showLabel = false,
+                state = state,
+                onValueChange = { newValue: Float ->
+                    volumeViewModel.onValueChanged(state, newValue)
+                },
+                onValueChangeFinished = { volumeViewModel.onValueChangeFinished() },
+                onIconTapped = { volumeViewModel.toggleMuted(state) },
+                sliderColors =
+                    com.android.compose.PlatformSliderDefaults.defaultPlatformSliderColors().let {
+                        if (!glass) it
+                        else
+                            it.copy(
+                                trackColor = com.android.systemui.qs.shared.style.LiquidGlassControl,
+                                indicatorColor = Color.White,
+                                iconColor = com.android.systemui.qs.shared.style.LiquidGlassVolume,
+                                labelColorOnIndicator =
+                                    com.android.systemui.qs.shared.style.LiquidGlassVolume,
+                                labelColorOnTrack = Color.White,
+                            )
+                    },
+                hapticsViewModelFactory = volumeViewModel.getSliderHapticsViewModelFactory(),
+            )
         }
     }
 

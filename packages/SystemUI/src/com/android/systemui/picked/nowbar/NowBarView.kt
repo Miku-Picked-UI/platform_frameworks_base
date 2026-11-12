@@ -516,13 +516,23 @@ class NowBarView(
      * fingerprint unlock is back on for the unlock this asks for.
      */
     private fun openPlayer() {
-        val intent = controller?.sessionActivity ?: return
+        val c = controller ?: return
         setExpanded(false, animate = false)
-        startIntent(intent)
+        val session = c.sessionActivity
+        if (session != null) {
+            startIntent(session)
+            return
+        }
+        // No session activity (some players don't set one): open the app itself.
+        context.packageManager.getLaunchIntentForPackage(c.packageName)?.let {
+            activityStarter.postStartActivityDismissingKeyguard(it, 0)
+        }
     }
 
     private fun startIntent(intent: PendingIntent) {
-        activityStarter.startPendingIntentDismissingKeyguard(intent)
+        // As AOSP's media controls do: posted, so the keyguard dismissal (and the unlock it may
+        // ask for) runs first, with SystemUI allowed to start the app from the background.
+        activityStarter.postStartActivityDismissingKeyguard(intent)
     }
 
     private fun setExpanded(value: Boolean, animate: Boolean) {
@@ -963,7 +973,7 @@ class NowBarView(
         val canNext = actions == 0L || (actions and PlaybackState.ACTION_SKIP_TO_NEXT) != 0L
         listOf(prev, bigPrev).forEach { it.isEnabled = canPrev; it.alpha = if (canPrev) 1f else 0.4f }
         listOf(next, bigNext).forEach { it.isEnabled = canNext; it.alpha = if (canNext) 1f else 0.4f }
-        openButton.visibility = if (c.sessionActivity != null) VISIBLE else INVISIBLE
+        openButton.visibility = VISIBLE
 
         mainHandler.removeCallbacks(progressUpdater)
         if (expanded) progressUpdater.run()
