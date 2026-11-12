@@ -133,6 +133,7 @@ import com.android.systemui.media.remedia.ui.compose.MediaUiBehavior
 import com.android.systemui.media.remedia.ui.viewmodel.MediaViewModel
 import com.android.systemui.plugins.qs.QS
 import com.android.systemui.plugins.qs.QSContainerController
+import com.android.systemui.qs.shared.style.glassSquish
 import com.android.systemui.qs.composefragment.SceneKeys.QuickQuickSettings
 import com.android.systemui.qs.composefragment.SceneKeys.QuickSettings
 import com.android.systemui.qs.composefragment.SceneKeys.debugName
@@ -937,6 +938,8 @@ constructor(
                                         }
                                     )
                                 ) {
+                                    // [Miku-Picked UI] Squishy Liquid Glass slider.
+                                    Box(Modifier.glassSquish()) {
                                     AlwaysDarkMode {
                                         BrightnessSliderContainer(
                                             viewModel =
@@ -957,6 +960,7 @@ constructor(
                                                 ),
                                             modifier = Modifier.fillMaxWidth(),
                                         )
+                                    }
                                     }
                                 }
                                 // [PenguinOS] The media volume slider, in the same Liquid Glass
@@ -1070,7 +1074,7 @@ constructor(
         val glass = com.android.systemui.qs.shared.style.liquidGlassEnabled()
         AlwaysDarkMode {
             com.android.systemui.volume.panel.component.volume.ui.composable.VolumeSlider(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().glassSquish(),
                 showLabel = false,
                 state = state,
                 onValueChange = { newValue: Float ->
