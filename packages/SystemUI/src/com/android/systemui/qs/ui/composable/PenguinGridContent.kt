@@ -96,6 +96,7 @@ import com.android.compose.modifiers.thenIf
 import com.android.compose.theme.PlatformTheme
 import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.qs.composefragment.BrightnessLayout
+import com.android.systemui.qs.shared.style.glassSquish
 import com.android.systemui.qs.shared.style.LocalGlassBlurAlpha
 import com.android.systemui.qs.shared.style.liquidGlassEnabled
 import com.android.systemui.qs.composefragment.ConnectivityFolder
@@ -751,13 +752,16 @@ internal fun ContentScope.GridItemContent(
                     enabled = oneUi,
                     button = { OneUiExtraDimButton(it) },
                 ) { sliderHeight ->
-                    BrightnessLayout(
-                        enable = interactable && !preview,
-                        horizontal = item.w > item.h,
-                        verticalWidth = null,
-                        sliderHeight = sliderHeight,
-                        capsule = true,
-                    )
+                    // [Miku-Picked UI] Squishy Liquid Glass slider.
+                    Box(if (preview) Modifier else Modifier.glassSquish()) {
+                        BrightnessLayout(
+                            enable = interactable && !preview,
+                            horizontal = item.w > item.h,
+                            verticalWidth = null,
+                            sliderHeight = sliderHeight,
+                            capsule = true,
+                        )
+                    }
                 }
             PenguinGrid.VOLUME_SPEC ->
                 OneUiSliderWithButton(
@@ -766,13 +770,16 @@ internal fun ContentScope.GridItemContent(
                     enabled = oneUi,
                     button = { OneUiVolumePanelButton(it) },
                 ) { sliderHeight ->
-                    VolumeLayout(
-                        enable = interactable && !preview,
-                        horizontal = item.w > item.h,
-                        verticalWidth = null,
-                        sliderHeight = sliderHeight,
-                        capsule = true,
-                    )
+                    // [Miku-Picked UI] Squishy Liquid Glass slider.
+                    Box(if (preview) Modifier else Modifier.glassSquish()) {
+                        VolumeLayout(
+                            enable = interactable && !preview,
+                            horizontal = item.w > item.h,
+                            verticalWidth = null,
+                            sliderHeight = sliderHeight,
+                            capsule = true,
+                        )
+                    }
                 }
             else ->
                 if (oneUi) {
