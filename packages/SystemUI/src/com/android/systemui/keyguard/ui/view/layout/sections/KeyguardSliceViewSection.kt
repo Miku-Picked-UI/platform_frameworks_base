@@ -62,6 +62,8 @@ constructor(
         sliceView =
             layoutInflater.inflate(R.layout.keyguard_slice_view, null, false) as KeyguardSliceView
         constraintLayout.addView(sliceView)
+        // Miku-Picked UI: the default date stays hidden while a custom clock is shown.
+        com.android.systemui.clocks.AospClockHider.reapply(constraintLayout)
     }
 
     override fun bindData(constraintLayout: ConstraintLayout) {

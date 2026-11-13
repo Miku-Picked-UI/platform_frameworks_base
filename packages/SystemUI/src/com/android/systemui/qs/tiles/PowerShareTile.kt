@@ -86,7 +86,7 @@ constructor(
             try {
                 IPowerShare.Stub.asInterface(ServiceManager.waitForDeclaredService(SERVICE))
             } catch (e: RuntimeException) {
-                Log.e(TAG, "PowerShare HAL unavailable", e)
+                Log.e(LOG_TAG, "PowerShare HAL unavailable", e)
                 null
             }
         return service
@@ -108,9 +108,9 @@ constructor(
         try {
             powerShare()?.setEnabled(enable)
         } catch (e: RemoteException) {
-            Log.e(TAG, "could not set PowerShare", e)
+            Log.e(LOG_TAG, "could not set PowerShare", e)
         } catch (e: RuntimeException) {
-            Log.e(TAG, "could not set PowerShare", e)
+            Log.e(LOG_TAG, "could not set PowerShare", e)
         }
         refreshState()
     }
@@ -149,7 +149,7 @@ constructor(
 
     companion object {
         const val TILE_SPEC = "powershare"
-        private const val TAG = "PowerShareTile"
+        private const val LOG_TAG = "PowerShareTile"
         private const val SERVICE = "vendor.lineage.powershare.IPowerShare/default"
     }
 }
