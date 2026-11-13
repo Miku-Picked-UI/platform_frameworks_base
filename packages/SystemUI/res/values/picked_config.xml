@@ -19,4 +19,8 @@
         <item>restart_bootloader</item>
         <item>restart_systemui</item>
     </string-array>
+
+    <!-- [Evolution X] Lockscreen charging info: raw BATTERY_PROPERTY_CURRENT_NOW units per mA.
+         1000 for µA (the API's unit); 1 for devices whose health HAL passes on mA. -->
+    <integer name="config_currentInfoDivider">1000</integer>
 </resources>

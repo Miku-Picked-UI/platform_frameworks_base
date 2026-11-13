@@ -113,6 +113,7 @@ import com.android.systemui.keyguard.util.IndicationHelper;
 import com.android.systemui.log.core.LogLevel;
 import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
+import com.android.systemui.picked.charging.ChargingInfo;
 import com.android.systemui.res.R;
 import com.android.systemui.securelockdevice.domain.interactor.SecureLockDeviceInteractor;
 import com.android.systemui.settings.UserTracker;
@@ -1221,10 +1222,37 @@ public class KeyguardIndicationController {
         if (hasChargingTime) {
             String chargingTimeFormatted = Formatter.formatShortElapsedTimeRoundingUpToMinutes(
                     mContext, mChargingTimeRemaining);
-            return mContext.getResources().getString(chargingId, chargingTimeFormatted,
-                    percentage);
+            return pickedWithChargingInfo(mContext.getResources().getString(chargingId,
+                    chargingTimeFormatted, percentage));
         } else {
-            return mContext.getResources().getString(chargingId, percentage);
+            return pickedWithChargingInfo(
+                    mContext.getResources().getString(chargingId, percentage));
+        }
+    }
+
+    // [Evolution X / AxionOS] Lockscreen charging info: current, power, voltage and temperature
+    // on a second line under the charging text, refreshed while plugged in and awake.
+    private String pickedWithChargingInfo(String chargingText) {
+        final String info = ChargingInfo.INSTANCE.line(mContext);
+        return info.isEmpty() ? chargingText : chargingText + "\n" + info;
+    }
+
+    private final Runnable mPickedChargingInfoRefresh = new Runnable() {
+        @Override
+        public void run() {
+            if (!mPowerPluggedIn || mDozing || !mKeyguardStateController.isShowing()
+                    || !ChargingInfo.INSTANCE.isEnabled(mContext)) {
+                return;
+            }
+            updateDeviceEntryIndication(false);
+            mHandler.postDelayed(this, ChargingInfo.REFRESH_MS);
+        }
+    };
+
+    private void pickedScheduleChargingInfoRefresh() {
+        mHandler.removeCallbacks(mPickedChargingInfoRefresh);
+        if (mPowerPluggedIn && !mDozing) {
+            mHandler.postDelayed(mPickedChargingInfoRefresh, ChargingInfo.REFRESH_MS);
         }
     }
 
@@ -1392,6 +1420,7 @@ public class KeyguardIndicationController {
             mKeyguardLogger.logRefreshBatteryInfo(isChargingOrFull, mPowerPluggedIn, mBatteryLevel,
                     mBatteryDefender);
             updateDeviceEntryIndication(!wasPluggedIn && mPowerPluggedInWired);
+            pickedScheduleChargingInfoRefresh();
         }
 
         @Override
@@ -1773,6 +1802,7 @@ public class KeyguardIndicationController {
                 hideBiometricMessage();
             }
             updateDeviceEntryIndication(false);
+            pickedScheduleChargingInfoRefresh();
         }
     };
 
@@ -1786,6 +1816,7 @@ public class KeyguardIndicationController {
 
         @Override
         public void onKeyguardShowingChanged() {
+            pickedScheduleChargingInfoRefresh();
             // All transient messages are gone the next time keyguard is shown
             if (!mKeyguardStateController.isShowing()) {
                 mKeyguardLogger.log(TAG, LogLevel.DEBUG, "clear messages");
