@@ -6,6 +6,7 @@
 package com.android.systemui.picked
 
 import com.android.systemui.CoreStartable
+import com.android.systemui.penguin.VolumePanelLooks
 import com.android.systemui.picked.oneuisland.OneUislandHost
 import com.android.systemui.picked.tether.TetherLteController
 import com.android.systemui.qs.QsEventLogger
@@ -18,6 +19,7 @@ import com.android.systemui.qs.tiles.SleepModeTile
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
 import com.android.systemui.res.R
+import com.android.systemui.volume.StyledVolumePanelLooks
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -49,6 +51,9 @@ interface PickedModule {
     @IntoMap
     @StringKey(PowerShareTile.TILE_SPEC)
     fun bindPowerShareTile(powerShareTile: PowerShareTile): QSTileImpl<*>
+
+    /** [PenguinOS] Volume panel styles (Settings.Secure volume_panel_style) */
+    @Binds fun bindVolumePanelLooks(looks: StyledVolumePanelLooks): VolumePanelLooks
 
     /** [OneUisland] Dynamic island */
     @Binds

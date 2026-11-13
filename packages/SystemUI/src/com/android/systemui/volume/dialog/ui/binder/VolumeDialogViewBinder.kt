@@ -18,6 +18,7 @@ package com.android.systemui.volume.dialog.ui.binder
 
 import android.app.Dialog
 import android.content.Context
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -41,6 +42,7 @@ import com.android.systemui.util.view.listenToComputeInternalInsets
 import com.android.systemui.volume.dialog.captions.ui.viewmodel.VolumeDialogCaptionsButtonViewModel
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialog
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialogScope
+import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogExpansionInteractor
 import com.android.systemui.volume.dialog.shared.model.VolumeDialogVisibilityModel
 import com.android.systemui.volume.dialog.ui.utils.JankListenerFactory
 import com.android.systemui.volume.dialog.ui.utils.suspendAnimate
@@ -74,8 +76,13 @@ constructor(
     private val captionsButtonViewModel: VolumeDialogCaptionsButtonViewModel,
     private val jankListenerFactory: JankListenerFactory,
     private val tracer: VolumeTracer,
+    private val expansionInteractor: VolumeDialogExpansionInteractor,
     @VolumeDialog private val viewBinders: List<@JvmSuppressWildcards ViewBinder>,
 ) {
+
+    // [PenguinOS] One UI / MyUI: the dialog is a floating card (VolumeDialog's cardLayout).
+    private val isCard: Boolean
+        get() = expansionInteractor.look?.cardLayout != null
 
     private val halfOpenedOffsetPx: Float =
         context.resources.getDimensionPixelSize(R.dimen.volume_dialog_half_opened_offset).toFloat()
@@ -93,6 +100,16 @@ constructor(
         // Root view of the Volume Dialog.
         val root: ViewGroup = dialog.requireViewById(R.id.volume_dialog)
         val mainSliderContainer: View? = root.findViewById(R.id.volume_dialog_main_slider_container)
+        if (isCard) {
+            // Expanded, the card moves to the middle of the screen, like One UI's.
+            launchTraced("VDVB#cardGravity") {
+                expansionInteractor.isExpanded.collect { isExpanded ->
+                    dialog.window?.setGravity(
+                        if (isExpanded) Gravity.CENTER else Gravity.END or Gravity.CENTER_VERTICAL
+                    )
+                }
+            }
+        }
         root.accessibilityDelegate = Accessibility(viewModel)
         root.setOnHoverListener { _, event ->
             viewModel.onHover(
@@ -133,6 +150,10 @@ constructor(
                                 WindowInsets.Type.navigationBars() or
                                 WindowInsets.Type.statusBars()
                         )
+                    if (isCard) {
+                        // A floating card: the system bars don't reach it.
+                        return@onApplyWindowInsets WindowInsets.CONSUMED
+                    }
                     view.updatePadding(
                         left = insetsValues.left,
                         top = insetsValues.top,
@@ -211,6 +232,11 @@ constructor(
      * @param fraction in range [0, 1]. 0 corresponds to the dialog being hidden and 1 - visible.
      */
     private fun View.applyAnimationProgress(fraction: Float) {
+        if (isCard) {
+            // A card fades in place instead of sliding in from the edge.
+            alpha = fraction
+            return
+        }
         alpha = ceil(fraction)
         translationX = lerp(width, 0, fraction).toFloat()
     }

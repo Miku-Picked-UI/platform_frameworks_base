@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The PenguinOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Expandable volume panel style -->
+    <string name="volume_panel_expand">Show all volume sliders</string>
+    <string name="volume_panel_collapse">Show only the current volume slider</string>
+    <!-- Header of the One UI volume panel style -->
+    <string name="volume_panel_oneui_title">Volume</string>
+    <!-- MyUI volume panel style -->
+    <string name="volume_panel_myui_title">Sound &amp; vibration</string>
+    <string name="volume_panel_myui_done">Done</string>
+</resources>

@@ -17,4 +17,7 @@
     <dimen name="picked_now_bar_side_margin">24dp</dimen>
     <dimen name="picked_now_bar_bottom_margin">20dp</dimen>
     <dimen name="picked_now_bar_max_width">480dp</dimen>
+
+    <!-- [PenguinOS] Volume panel styles: blur behind the One UI / MyUI cards -->
+    <dimen name="volume_dialog_background_surface_blur_radius">23dp</dimen>
 </resources>

@@ -35,6 +35,7 @@ import com.android.app.tracing.coroutines.launchTraced
 import com.android.internal.R as internalR
 import com.android.systemui.res.R
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialogScope
+import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogExpansionInteractor
 import com.android.systemui.volume.dialog.ringer.ui.util.VolumeDialogRingerDrawerTransitionListener
 import com.android.systemui.volume.dialog.ringer.ui.util.updateCloseState
 import com.android.systemui.volume.dialog.ringer.ui.util.updateOpenState
@@ -66,7 +67,12 @@ class VolumeDialogRingerViewBinder
 constructor(
     private val viewModel: VolumeDialogRingerDrawerViewModel,
     private val dialogViewModel: VolumeDialogViewModel,
+    private val expansionInteractor: VolumeDialogExpansionInteractor,
 ) : ViewBinder {
+
+    // [PenguinOS] Volume panel styles recolour the ringer buttons; column styles drop its card.
+    private val lookColors = expansionInteractor.look?.ringerColors
+
     private val roundnessSpringForce =
         SpringForce(1F).apply {
             stiffness = 800F
@@ -80,12 +86,32 @@ constructor(
     private val rgbEvaluator = ArgbEvaluator()
 
     override fun CoroutineScope.bind(view: View) {
+        // [PenguinOS] The card styles (One UI, MyUI) have no ringer drawer.
+        if (expansionInteractor.look?.cardLayout != null) {
+            return
+        }
         val volumeDialogBackgroundView = view.requireViewById<View>(R.id.volume_dialog_background)
         val ringerBackgroundView = view.requireViewById<View>(R.id.ringer_buttons_background)
         val drawerContainer = view.requireViewById<MotionLayout>(R.id.volume_ringer_drawer)
 
-        val unselectedButtonUiModel = RingerButtonUiModel.getUnselectedButton(view.context)
-        val selectedButtonUiModel = RingerButtonUiModel.getSelectedButton(view.context)
+        val unselectedButtonUiModel =
+            RingerButtonUiModel.getUnselectedButton(view.context).let { model ->
+                lookColors?.let {
+                    model.copy(
+                        tintColor = view.context.getColor(it.icon),
+                        backgroundColor = view.context.getColor(it.background),
+                    )
+                } ?: model
+            }
+        val selectedButtonUiModel =
+            RingerButtonUiModel.getSelectedButton(view.context).let { model ->
+                lookColors?.let {
+                    model.copy(
+                        tintColor = view.context.getColor(it.selectedIcon),
+                        backgroundColor = view.context.getColor(it.selectedBackground),
+                    )
+                } ?: model
+            }
         val volumeDialogBgSmallRadius =
             view.context.resources.getDimensionPixelSize(
                 R.dimen.volume_dialog_background_square_corner_radius
@@ -120,6 +146,7 @@ constructor(
         drawerContainer.setTransitionListener(ringerDrawerTransitionListener)
         volumeDialogBackgroundView.background = volumeDialogBackgroundView.background.mutate()
         ringerBackgroundView.background = ringerBackgroundView.background.mutate()
+        ringerBackgroundView.hideLookCard()
         launchTraced("VDRVB#addTouchableBounds") {
             dialogViewModel.addTouchableBounds(ringerBackgroundView)
         }
@@ -231,6 +258,7 @@ constructor(
                                 )
                                 ringerBackgroundView.background =
                                     ringerBackgroundView.background.mutate()
+                                ringerBackgroundView.hideLookCard()
                             }
                         }
                     }
@@ -339,6 +367,10 @@ constructor(
     ) {
         // id = buttonViewModel.viewId
         setSelected(isSelected)
+        if (lookColors?.hideCard == true) {
+            // Without the card, only the open drawer's and the selected button show.
+            alpha = if (isOpen || isSelected) 1f else 0f
+        }
         val ringerContentDesc = context.getString(buttonViewModel.contentDescriptionResId)
         setImageResource(buttonViewModel.imageResId)
         contentDescription =
@@ -354,10 +386,12 @@ constructor(
             setBackgroundResource(R.drawable.volume_drawer_selection_bg)
             setColorFilter(context.getColor(internalR.color.materialColorOnPrimary))
             background = background.mutate()
+            lookColors?.let { applyLookColors(it.selectedBackground, it.selectedIcon) }
         } else if (!isAnimated) {
             setBackgroundResource(R.drawable.volume_ringer_item_bg)
             setColorFilter(context.getColor(internalR.color.materialColorOnSurface))
             background = background.mutate()
+            lookColors?.let { applyLookColors(it.background, it.icon) }
         }
         setOnClickListener {
             viewModel.onRingerButtonClicked(buttonViewModel.ringerMode, isSelected)
@@ -440,7 +474,20 @@ constructor(
     private fun View.applyCorners(fullRadius: Int, diff: Int, progress: Float) {
         val radius = fullRadius - progress * diff
         (background as GradientDrawable).cornerRadius = radius
+        hideLookCard()
         background.invalidateSelf()
+    }
+
+    private fun ImageButton.applyLookColors(background: Int, icon: Int) {
+        backgroundShape().setColor(context.getColor(background))
+        this.background.invalidateSelf()
+        setColorFilter(context.getColor(icon))
+    }
+
+    private fun View.hideLookCard() {
+        if (lookColors?.hideCard != true) return
+        alpha = 0f
+        background?.alpha = 0
     }
 }
 

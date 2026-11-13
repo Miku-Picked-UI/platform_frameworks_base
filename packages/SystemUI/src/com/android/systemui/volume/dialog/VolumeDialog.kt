@@ -27,6 +27,7 @@ import androidx.activity.ComponentDialog
 import com.android.app.tracing.coroutines.coroutineScopeTraced
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.lifecycle.repeatWhenAttached
+import com.android.systemui.penguin.VolumePanelLooks
 import com.android.systemui.res.R
 import com.android.systemui.volume.Events
 import com.android.systemui.volume.dialog.dagger.factory.VolumeDialogComponentFactory
@@ -42,9 +43,14 @@ constructor(
     private val componentFactory: VolumeDialogComponentFactory,
     private val visibilityInteractor: VolumeDialogVisibilityInteractor,
     desktopAudioTileDetailsFeatureInteractor: DesktopAudioTileDetailsFeatureInteractor,
+    looks: VolumePanelLooks,
 ) : ComponentDialog(context, R.style.Theme_SystemUI_Dialog_Volume) {
     // Use horizontal volume dialog if the audio tile details view is enabled
     private val isVolumeDialogVertical = !desktopAudioTileDetailsFeatureInteractor.isEnabled()
+
+    // [PenguinOS] Card styles (One UI, MyUI) bring their own layout: a floating card.
+    private val cardLayout: Int? =
+        looks.current(context)?.cardLayout?.takeIf { isVolumeDialogVertical }
 
     init {
         with(window!!) {
@@ -62,7 +68,10 @@ constructor(
                 attributes.apply {
                     title = "VolumeDialog" // Not the same as Window#setTitle
                 }
-            if (isVolumeDialogVertical) {
+            if (cardLayout != null) {
+                setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setGravity(Gravity.END or Gravity.CENTER_VERTICAL)
+            } else if (isVolumeDialogVertical) {
                 setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
                 setGravity(Gravity.END)
             } else {
@@ -76,7 +85,9 @@ constructor(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (isVolumeDialogVertical) {
+        if (cardLayout != null) {
+            setContentView(cardLayout)
+        } else if (isVolumeDialogVertical) {
             setContentView(R.layout.volume_dialog)
         } else {
             setContentView(R.layout.volume_dialog_horizontal)
