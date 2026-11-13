@@ -22,7 +22,7 @@ import com.android.systemui.res.R
  */
 object AospClockHider {
 
-    // The stock clock, and the default date (and day) the smartspace shows next to or under it:
+    // The stock clock, and the default date (and day) the smartspace or slice view shows next to or under it:
     // the custom clocks draw their own date.
     private val CLOCK_IDS =
         intArrayOf(
@@ -30,6 +30,8 @@ object AospClockHider {
             ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
             com.android.systemui.shared.R.id.date_smartspace_view,
             com.android.systemui.shared.R.id.date_smartspace_view_large,
+            // Without smartspace the date comes from the legacy slice view instead.
+            R.id.keyguard_slice_view,
         )
 
     /** Hides or shows the stock clock views found under [root]. */
