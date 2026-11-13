@@ -468,22 +468,27 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     // Panels only move (translation) and fade; the notification stack fades as a hardware
     // layer, and Quick Settings fades inside Compose (PickedPanelSwitch), so its Liquid Glass
     // fades with it. Both stay drawn only while it runs.
-    private static final long PICKED_SWITCH_SIDE_MS = 440;
-    private static final long PICKED_SWITCH_TOP_MS = 420;
+    private static final long PICKED_SWITCH_SIDE_MS = 500;
+    private static final long PICKED_SWITCH_TOP_MS = 460;
     private static final float PICKED_SWITCH_BACK = 0.25f;  // outgoing drift, of the width
-    private static final float PICKED_SWITCH_DROP = 0.2f;   // incoming drop, of the height
+    private static final float PICKED_SWITCH_DROP = 0.16f;  // incoming drop, of the height
     private static final float PICKED_SWITCH_LIFT = 0.05f;  // outgoing lift, of the height
     private ValueAnimator mPickedSwitchAnimator;
 
-    /** A softly damped spring as a time curve (damping 0.86, settled by the end). */
+    // The motion curves. Neither may be too front-loaded: at 120 Hz an emphasized decelerate
+    // covers most of the way in the first few frames, so the switch read as a cut.
+    /** A softly damped spring as a time curve (damping 0.9, settled by the end). */
     private static final android.animation.TimeInterpolator PICKED_SPRING = t -> {
-        final float zeta = 0.86f;
-        final float omega = 8.2f;
+        final float zeta = 0.9f;
+        final float omega = 6.5f;
         final float wd = omega * (float) Math.sqrt(1f - zeta * zeta);
         final float decay = (float) Math.exp(-zeta * omega * t);
         return 1f - decay * ((float) Math.cos(wd * t)
                 + zeta * omega / wd * (float) Math.sin(wd * t));
     };
+    /** Pulled down from the top: a gentle decelerate, like the shade settling open. */
+    private static final android.animation.TimeInterpolator PICKED_DROP =
+            new android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f);
 
     private void pickedSwitchSplitPanels(boolean toQs, boolean fromTop) {
         final View qsView = mQs != null && mQs.getView() != null ? mQs.getView() : mQsFrame;
@@ -508,10 +513,12 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         if (toQs) setListening(true);
         setExpanded(toQs);
         updateExpansion();
-        pickedApplySwitch(in, out, nssl, 0f, fromTop, dir, width, height);
+        pickedApplySwitch(in, out, nssl, 0f, 0f, fromTop, dir, width, height);
         anim.setDuration(fromTop ? PICKED_SWITCH_TOP_MS : PICKED_SWITCH_SIDE_MS);
-        anim.setInterpolator(fromTop ? Interpolators.EMPHASIZED_DECELERATE : PICKED_SPRING);
-        anim.addUpdateListener(a -> pickedApplySwitch(in, out, nssl,
+        anim.setInterpolator(fromTop ? PICKED_DROP : PICKED_SPRING);
+        // Movement follows the curve (p); the fades follow time (t), so they stay visible
+        // over the whole switch instead of finishing within the curve's first frames.
+        anim.addUpdateListener(a -> pickedApplySwitch(in, out, nssl, a.getAnimatedFraction(),
                 (float) a.getAnimatedValue(), fromTop, dir, width, height));
         anim.addListener(new AnimatorListenerAdapter() {
             @Override
@@ -529,23 +536,29 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         anim.start();
     }
 
-    private static void pickedApplySwitch(View in, View out, View nssl, float p, boolean fromTop,
-            float dir, float width, float height) {
+    private static void pickedApplySwitch(View in, View out, View nssl, float t, float p,
+            boolean fromTop, float dir, float width, float height) {
         if (fromTop) {
             in.setTranslationX(0f);
             in.setTranslationY(-PICKED_SWITCH_DROP * height * (1f - p));
-            pickedSetAlpha(in, nssl, Math.min(1f, p * 1.8f));
+            pickedSetAlpha(in, nssl, pickedRamp(t / 0.6f));
             out.setTranslationX(0f);
             out.setTranslationY(-PICKED_SWITCH_LIFT * height * p);
-            pickedSetAlpha(out, nssl, Math.max(0f, 1f - p * 2f));
+            pickedSetAlpha(out, nssl, 1f - pickedRamp(t / 0.45f));
         } else {
             in.setTranslationY(0f);
             in.setTranslationX(dir * width * (1f - p));
             pickedSetAlpha(in, nssl, 1f);
             out.setTranslationY(0f);
             out.setTranslationX(-dir * PICKED_SWITCH_BACK * width * p);
-            pickedSetAlpha(out, nssl, Math.max(0f, 1f - p * 1.4f));
+            pickedSetAlpha(out, nssl, 1f - pickedRamp(t / 0.7f));
         }
+    }
+
+    /** 0..1 clamped, eased at both ends (smoothstep). */
+    private static float pickedRamp(float x) {
+        final float c = Math.max(0f, Math.min(1f, x));
+        return c * c * (3f - 2f * c);
     }
 
     private static void pickedSetAlpha(View v, View nssl, float alpha) {
