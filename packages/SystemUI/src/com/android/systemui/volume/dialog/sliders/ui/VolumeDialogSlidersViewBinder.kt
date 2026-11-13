@@ -23,12 +23,15 @@ import androidx.annotation.LayoutRes
 import androidx.compose.ui.util.fastForEachIndexed
 import com.android.app.tracing.coroutines.launchInTraced
 import com.android.app.tracing.coroutines.launchTraced
+import com.android.systemui.penguin.VolumePanelLook
 import com.android.systemui.res.R
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialogScope
+import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogExpansionInteractor
 import com.android.systemui.volume.dialog.sliders.dagger.VolumeDialogSliderComponent
 import com.android.systemui.volume.dialog.sliders.ui.viewmodel.VolumeDialogSlidersViewModel
 import com.android.systemui.volume.dialog.ui.binder.ViewBinder
 import com.android.systemui.volume.dialog.ui.viewmodel.VolumeDialogViewModel
+import com.android.systemui.window.domain.interactor.WindowRootViewBlurInteractor
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.onEach
@@ -39,6 +42,8 @@ class VolumeDialogSlidersViewBinder
 constructor(
     private val viewModel: VolumeDialogSlidersViewModel,
     private val dialogViewModel: VolumeDialogViewModel,
+    private val expansionInteractor: VolumeDialogExpansionInteractor,
+    private val windowRootViewBlurInteractor: WindowRootViewBlurInteractor,
 ) : ViewBinder {
 
     override fun CoroutineScope.bind(view: View) {
@@ -53,6 +58,35 @@ constructor(
         launchTraced("VDSVB#addTouchableBounds") {
             dialogViewModel.addTouchableBounds(mainSliderContainer, floatingSlidersContainer)
         }
+
+        // [PenguinOS] Volume panel styles: the look dresses the panel (card or column, the
+        // expand button) and switches between the current slider and all of them.
+        val look = expansionInteractor.look
+        if (look != null) {
+            val host =
+                object : VolumePanelLook.PanelHost {
+                    override val mainSliderContainer = mainSliderContainer
+                    override val floatingSlidersContainer = floatingSlidersContainer
+                    // Cards are frosted (a cross-window blur; Liquid Glass when that is on).
+                    override val showBlur = true
+                    override val isBlurSupported =
+                        windowRootViewBlurInteractor.isBlurCurrentlySupported
+                    override val isExpanded = expansionInteractor.isExpanded
+
+                    override fun toggleExpanded() {
+                        expansionInteractor.toggle()
+                        dialogViewModel.resetDialogTimeout()
+                    }
+
+                    override fun addTouchableBounds(vararg views: View) {
+                        launchTraced("VDSVB#lookTouchableBounds") {
+                            dialogViewModel.addTouchableBounds(*views)
+                        }
+                    }
+                }
+            with(look) { bindPanel(view, host) }
+        }
+
         viewModel.sliders
             .onEach { uiModel ->
                 bindSlider(
@@ -63,11 +97,12 @@ constructor(
 
                 val floatingSliderViewBinders = uiModel.floatingSliderComponent
                 floatingSlidersContainer.ensureChildCount(
-                    viewLayoutId = R.layout.volume_dialog_slider_floating,
+                    viewLayoutId = look?.floatingSliderLayout ?: R.layout.volume_dialog_slider_floating,
                     count = floatingSliderViewBinders.size,
                 )
                 floatingSliderViewBinders.fastForEachIndexed { index, sliderComponent ->
                     val sliderContainer = floatingSlidersContainer.getChildAt(index)
+                    look?.onFloatingSliderAdded(sliderContainer)
                     bindSlider(sliderComponent, sliderContainer, arrayOf(sliderContainer))
                 }
             }

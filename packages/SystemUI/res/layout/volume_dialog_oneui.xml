@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright (C) 2026 The PenguinOS Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<!--
+     Root view of the One UI volume panel style: a frosted card holding a header and one pill per
+     stream. The ids are the ones the volume dialog view binders look for. There is no ringer drawer
+     here, and VolumeDialogRingerViewBinder skips this style because of that.
+
+     Collapsed, the header goes away and the dots on top of the only pill expand the panel again -
+     see VolumeDialogExpandButtonViewBinder.
+-->
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/volume_dialog"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:alpha="0"
+    android:background="@drawable/volume_panel_oneui_background"
+    android:clipChildren="false">
+
+    <!-- The card is the root's own background here, so that it wraps the header and the pills
+         without a second pass at measuring them. This view only exists because the volume dialog
+         binders look it up; it is what they animate on overscroll. -->
+    <View
+        android:id="@+id/volume_dialog_background"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+    <!-- Whole header in one container, so that collapsing the panel hides it in one go. -->
+    <LinearLayout
+        android:id="@+id/volume_dialog_oneui_header"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/volume_panel_oneui_header_height"
+        android:layout_marginStart="@dimen/volume_panel_oneui_padding"
+        android:layout_marginTop="@dimen/volume_panel_oneui_padding"
+        android:layout_marginEnd="@dimen/volume_panel_oneui_padding"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/volume_dialog_expand"
+            android:layout_width="@dimen/volume_panel_oneui_header_height"
+            android:layout_height="@dimen/volume_panel_oneui_header_height"
+            android:background="@drawable/ripple_drawable_20dp"
+            android:contentDescription="@string/volume_panel_collapse"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:soundEffectsEnabled="false"
+            android:src="@drawable/ic_expand_less_rounded"
+            android:tint="@color/volume_panel_oneui_icon"/>
+
+        <com.android.systemui.volume.CaptionsToggleImageButton
+            android:id="@+id/odi_captions_icon"
+            android:layout_width="@dimen/volume_panel_oneui_header_height"
+            android:layout_height="@dimen/volume_panel_oneui_header_height"
+            android:background="@drawable/volume_panel_oneui_captions_background"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:soundEffectsEnabled="false"
+            android:src="@drawable/ic_volume_odi_captions_disabled"
+            android:tint="@color/volume_panel_oneui_icon"
+            android:visibility="gone"/>
+
+
+        <TextView
+            android:id="@+id/volume_dialog_oneui_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/volume_panel_oneui_title"
+            android:textColor="@color/volume_panel_oneui_icon"
+            android:textSize="16sp"
+            android:textStyle="bold"/>
+
+        <ImageButton
+            android:id="@+id/volume_dialog_settings"
+            android:layout_width="@dimen/volume_panel_oneui_header_height"
+            android:layout_height="@dimen/volume_panel_oneui_header_height"
+            android:background="@drawable/ripple_drawable_20dp"
+            android:contentDescription="@string/accessibility_volume_settings"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:soundEffectsEnabled="false"
+            android:tint="@color/volume_panel_oneui_icon"/>
+    </LinearLayout>
+
+    <!--
+         The pills sit in a packed horizontal chain, so that a collapsed panel centres its single
+         pill instead of leaving it stuck against the end of the card.
+    -->
+    <LinearLayout
+        android:id="@+id/volume_dialog_floating_sliders_container"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/volume_panel_oneui_slider_container_height"
+        android:layout_marginStart="@dimen/volume_panel_oneui_padding"
+        android:divider="@drawable/volume_panel_oneui_sliders_spacer"
+        android:orientation="horizontal"
+        android:showDividers="middle"
+        app:layout_constraintEnd_toStartOf="@id/volume_dialog_main_slider_container"
+        app:layout_constraintHorizontal_chainStyle="packed"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/volume_dialog_main_slider_container"/>
+
+    <include
+        android:id="@+id/volume_dialog_main_slider_container"
+        layout="@layout/volume_dialog_slider"
+        android:layout_width="@dimen/volume_panel_oneui_slider_width"
+        android:layout_height="@dimen/volume_panel_oneui_slider_container_height"
+        android:layout_marginStart="@dimen/volume_panel_oneui_slider_spacing"
+        android:layout_marginTop="@dimen/volume_panel_oneui_padding"
+        android:layout_marginEnd="@dimen/volume_panel_oneui_padding"
+        android:layout_marginBottom="@dimen/volume_panel_oneui_padding"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/volume_dialog_floating_sliders_container"
+        app:layout_constraintTop_toBottomOf="@id/volume_dialog_oneui_header"/>
+
+    <!--
+         Expands the panel while it is collapsed, where there is no header to put a chevron in. Sits
+         on top of the only pill, like the dots the design shows there.
+    -->
+    <ImageButton
+        android:id="@+id/volume_dialog_expand_collapsed"
+        android:layout_width="@dimen/volume_panel_oneui_slider_width"
+        android:layout_height="@dimen/volume_panel_oneui_header_height"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/volume_panel_expand"
+        android:padding="8dp"
+        android:scaleType="centerInside"
+        android:soundEffectsEnabled="false"
+        android:src="@drawable/ic_volume_panel_oneui_more"
+        android:tint="@color/volume_panel_oneui_icon"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@id/volume_dialog_main_slider_container"
+        app:layout_constraintStart_toStartOf="@id/volume_dialog_main_slider_container"
+        app:layout_constraintTop_toTopOf="@id/volume_dialog_main_slider_container"/>
+
+    <!-- The sliders view binder animates these two on overscroll. This style has no separate top
+         and bottom sections, so they are here only to keep that binder happy. Gone, so that they
+         take part in neither the layout nor the height the card wraps to. -->
+    <View
+        android:id="@+id/volume_dialog_top_section_container"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+    <View
+        android:id="@+id/volume_dialog_bottom_section_container"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

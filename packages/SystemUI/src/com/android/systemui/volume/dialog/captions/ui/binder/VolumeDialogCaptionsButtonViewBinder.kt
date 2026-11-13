@@ -28,6 +28,7 @@ import com.android.systemui.volume.CaptionsToggleImageButton
 import com.android.systemui.volume.Events
 import com.android.systemui.volume.dialog.captions.ui.viewmodel.VolumeDialogCaptionsButtonViewModel
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialogScope
+import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogExpansionInteractor
 import com.android.systemui.volume.dialog.ui.binder.ViewBinder
 import com.android.systemui.volume.dialog.ui.viewmodel.VolumeDialogViewModel
 import javax.inject.Inject
@@ -42,6 +43,7 @@ class VolumeDialogCaptionsButtonViewBinder
 constructor(
     private val viewModel: VolumeDialogCaptionsButtonViewModel,
     private val dialogViewModel: VolumeDialogViewModel,
+    private val expansionInteractor: VolumeDialogExpansionInteractor,
     @Background private val bgHandler: Handler,
 ) : ViewBinder {
     override fun CoroutineScope.bind(view: View) {
@@ -50,6 +52,9 @@ constructor(
         }
 
         val captionsButton = view.requireViewById<CaptionsToggleImageButton>(R.id.odi_captions_icon)
+        // [PenguinOS] A volume panel style may restyle the captions button.
+        val look = expansionInteractor.look
+        look?.bindCaptionsButton(captionsButton)
 
         launchTraced("VDCBVB#addTouchableBounds") {
             dialogViewModel.addTouchableBounds(captionsButton)
@@ -80,11 +85,12 @@ constructor(
 
                     setColorFilter(
                         captionsButton.context.getColor(
-                            if (isEnabled) {
-                                com.android.internal.R.color.materialColorOnPrimary
-                            } else {
-                                com.android.internal.R.color.materialColorOnSurface
-                            }
+                            look?.captionsIconColor(isEnabled)
+                                ?: if (isEnabled) {
+                                    com.android.internal.R.color.materialColorOnPrimary
+                                } else {
+                                    com.android.internal.R.color.materialColorOnSurface
+                                }
                         )
                     )
 

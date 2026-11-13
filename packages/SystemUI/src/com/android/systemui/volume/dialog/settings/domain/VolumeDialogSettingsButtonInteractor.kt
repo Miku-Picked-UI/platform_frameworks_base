@@ -18,12 +18,14 @@ package com.android.systemui.volume.dialog.settings.domain
 
 import android.app.ActivityManager
 import com.android.app.tracing.coroutines.flow.flowName
+import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.statusbar.policy.DeviceProvisionedController
 import com.android.systemui.volume.Events
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialog
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialogScope
 import com.android.systemui.volume.dialog.domain.interactor.DesktopAudioTileDetailsFeatureInteractor
+import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogExpansionInteractor
 import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogVisibilityInteractor
 import com.android.systemui.volume.dialog.shared.model.VolumeDialogVisibilityModel
 import com.android.systemui.volume.panel.domain.interactor.VolumePanelGlobalStateInteractor
@@ -45,6 +47,8 @@ constructor(
     private val visibilityInteractor: VolumeDialogVisibilityInteractor,
     private val shadeInteractor: ShadeInteractor,
     private val desktopAudioTileDetailsFeatureInteractor: DesktopAudioTileDetailsFeatureInteractor,
+    private val expansionInteractor: VolumeDialogExpansionInteractor,
+    private val activityStarter: ActivityStarter,
 ) {
 
     val isVisible: StateFlow<Boolean> =
@@ -58,7 +62,20 @@ constructor(
             .stateIn(coroutineScope, SharingStarted.Eagerly, false)
 
     fun onButtonClicked() {
-        if (desktopAudioTileDetailsFeatureInteractor.isEnabled()) {
+        // [PenguinOS] Card styles open the Sound settings, like One UI's settings button.
+        val lookIntent = expansionInteractor.look?.settingsIntent()
+        if (lookIntent != null) {
+            activityStarter.startActivityDismissingKeyguard(
+                lookIntent,
+                /* onlyProvisioned = */ false,
+                /* dismissShade = */ true,
+                /* disallowEnterPictureInPictureWhileLaunching = */ false,
+                /* callback = */ null,
+                android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
+                /* animationController = */ null,
+                /* userHandle = */ null,
+            )
+        } else if (desktopAudioTileDetailsFeatureInteractor.isEnabled()) {
             shadeInteractor.expandQuickSettingsShade(QS_SHADE_EXPAND_REASON)
         } else {
             volumePanelGlobalStateInteractor.setVisible(true)

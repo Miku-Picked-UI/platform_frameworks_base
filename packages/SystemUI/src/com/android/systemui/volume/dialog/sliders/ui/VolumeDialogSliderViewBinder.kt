@@ -42,8 +42,10 @@ import com.android.compose.theme.PlatformTheme
 import com.android.systemui.common.ui.compose.Icon
 import com.android.systemui.haptics.slider.SliderHapticFeedbackFilter
 import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
+import com.android.systemui.penguin.VolumePanelLook
 import com.android.systemui.res.R
 import com.android.systemui.volume.dialog.domain.interactor.DesktopAudioTileDetailsFeatureInteractor
+import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogExpansionInteractor
 import com.android.systemui.volume.dialog.sliders.dagger.VolumeDialogSliderScope
 import com.android.systemui.volume.dialog.sliders.ui.compose.SliderTrack
 import com.android.systemui.volume.dialog.sliders.ui.viewmodel.VolumeDialogOverscrollViewModel
@@ -66,6 +68,7 @@ constructor(
     private val overscrollViewModel: VolumeDialogOverscrollViewModel,
     private val hapticsViewModelFactory: SliderHapticsViewModel.Factory,
     private val desktopAudioTileDetailsFeatureInteractor: DesktopAudioTileDetailsFeatureInteractor,
+    private val expansionInteractor: VolumeDialogExpansionInteractor,
 ) {
     fun bind(view: View) {
         // Use horizontal volume dialog if the audio tile details view is enabled
@@ -73,12 +76,25 @@ constructor(
         val sliderComposeView: ComposeView = view.requireViewById(R.id.volume_dialog_slider)
         sliderComposeView.setContent {
             PlatformTheme {
-                VolumeDialogSlider(
-                    viewModel = viewModel,
-                    overscrollViewModel = overscrollViewModel,
-                    hapticsViewModelFactory = hapticsViewModelFactory,
-                    isVolumeDialogVertical = isVolumeDialogVertical,
-                )
+                // [PenguinOS] Volume panel styles draw their own slider.
+                val look = expansionInteractor.look
+                if (look != null) {
+                    look.Slider(
+                        VolumePanelLook.SliderHost(
+                            viewModel = viewModel,
+                            overscrollViewModel = overscrollViewModel,
+                            hapticsViewModelFactory = hapticsViewModelFactory,
+                            isExpanded = expansionInteractor.isExpanded,
+                        )
+                    )
+                } else {
+                    VolumeDialogSlider(
+                        viewModel = viewModel,
+                        overscrollViewModel = overscrollViewModel,
+                        hapticsViewModelFactory = hapticsViewModelFactory,
+                        isVolumeDialogVertical = isVolumeDialogVertical,
+                    )
+                }
             }
         }
     }

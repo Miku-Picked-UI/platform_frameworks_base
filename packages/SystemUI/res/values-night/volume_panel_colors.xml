@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The PenguinOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- MyUI volume panel style, dark theme. -->
+    <color name="volume_panel_myui_background_blur">#B31E2126</color>
+    <color name="volume_panel_myui_background_fallback">#F21E2126</color>
+    <color name="volume_panel_myui_track_active">#FFA8C7FA</color>
+    <color name="volume_panel_myui_track_inactive">#FF060708</color>
+    <color name="volume_panel_myui_icon">#FFFFFFFF</color>
+    <color name="volume_panel_myui_divider">#33FFFFFF</color>
+    <color name="volume_panel_myui_button">#33FFFFFF</color>
+</resources>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The PenguinOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Expandable volume panel style -->
+    <dimen name="volume_panel_expandable_track_size">44dp</dimen>
+    <dimen name="volume_panel_expandable_slider_height">148dp</dimen>
+    <!-- Half of the track, so every pill is fully rounded. -->
+    <dimen name="volume_panel_expandable_track_corner_radius">22dp</dimen>
+    <!-- One UI volume panel style -->
+    <dimen name="volume_panel_oneui_background_corner_radius">28dp</dimen>
+    <dimen name="volume_panel_oneui_padding">20dp</dimen>
+    <dimen name="volume_panel_oneui_slider_width">52dp</dimen>
+    <dimen name="volume_panel_oneui_track_size">52dp</dimen>
+    <dimen name="volume_panel_oneui_track_corner_radius">26dp</dimen>
+    <!-- Pill plus the label underneath it. -->
+    <dimen name="volume_panel_oneui_slider_container_height">248dp</dimen>
+    <dimen name="volume_panel_oneui_slider_spacing">10dp</dimen>
+    <dimen name="volume_panel_oneui_header_height">40dp</dimen>
+    <!-- Keeps the header readable when the panel is collapsed down to a single pill. -->
+    <dimen name="volume_panel_oneui_min_width">260dp</dimen>
+    <!-- MyUI volume panel style -->
+    <dimen name="volume_panel_myui_background_corner_radius">30dp</dimen>
+    <!-- Half the collapsed column, 14dp + 34dp + 14dp wide. -->
+    <dimen name="volume_panel_myui_collapsed_corner_radius">31dp</dimen>
+    <dimen name="volume_panel_myui_padding">14dp</dimen>
+    <dimen name="volume_panel_myui_header_height">34dp</dimen>
+    <dimen name="volume_panel_myui_slider_width">34dp</dimen>
+    <dimen name="volume_panel_myui_slider_container_height">196dp</dimen>
+    <dimen name="volume_panel_myui_slider_spacing">26dp</dimen>
+    <dimen name="volume_panel_myui_track_size">5dp</dimen>
+    <dimen name="volume_panel_myui_divider_inset">20dp</dimen>
+    <dimen name="volume_panel_myui_captions_size">46dp</dimen>
+    <dimen name="volume_panel_myui_expanded_width">300dp</dimen>
+    <dimen name="volume_panel_myui_screen_margin">12dp</dimen>
+    <dimen name="volume_panel_myui_footer_bottom">20dp</dimen>
+</resources>

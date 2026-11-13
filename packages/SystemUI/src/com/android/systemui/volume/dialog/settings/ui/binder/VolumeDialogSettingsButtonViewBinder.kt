@@ -22,6 +22,7 @@ import com.android.app.tracing.coroutines.launchInTraced
 import com.android.app.tracing.coroutines.launchTraced
 import com.android.systemui.res.R
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialogScope
+import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogExpansionInteractor
 import com.android.systemui.volume.dialog.settings.ui.viewmodel.VolumeDialogSettingsButtonViewModel
 import com.android.systemui.volume.dialog.ui.binder.ViewBinder
 import com.android.systemui.volume.dialog.ui.viewmodel.VolumeDialogViewModel
@@ -35,16 +36,21 @@ class VolumeDialogSettingsButtonViewBinder
 constructor(
     private val viewModel: VolumeDialogSettingsButtonViewModel,
     private val dialogViewModel: VolumeDialogViewModel,
+    private val expansionInteractor: VolumeDialogExpansionInteractor,
 ) : ViewBinder {
 
     override fun CoroutineScope.bind(view: View) {
         val button = view.requireViewById<ImageButton>(R.id.volume_dialog_settings)
+        // [PenguinOS] A volume panel style may restyle the button and set its own icon.
+        val ownIcon = expansionInteractor.look?.bindSettingsButton(button) == true
         launchTraced("VDSBVB#addTouchableBounds") { dialogViewModel.addTouchableBounds(button) }
         viewModel.isVisible
             .onEach { isVisible -> button.visibility = if (isVisible) View.VISIBLE else View.GONE }
             .launchInTraced("VDSBVB#isVisible", this)
 
-        viewModel.icon.onEach { button.setImageDrawable(it) }.launchInTraced("VDSBVB#icon", this)
+        if (!ownIcon) {
+            viewModel.icon.onEach { button.setImageDrawable(it) }.launchInTraced("VDSBVB#icon", this)
+        }
 
         button.setOnClickListener { viewModel.onButtonClicked() }
     }
