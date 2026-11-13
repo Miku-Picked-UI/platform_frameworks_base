@@ -3,6 +3,7 @@ package com.android.systemui.navigationbar.gestural
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -11,11 +12,17 @@ import android.view.View
 import androidx.dynamicanimation.animation.FloatPropertyCompat
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
+import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 import com.android.internal.util.LatencyTracker
 import com.android.systemui.navigationbar.gestural.BackPanelController.DelayedOnAnimationEndListener
+import com.android.systemui.qs.shared.style.LiquidGlass
 
 private const val TAG = "BackPanel"
 private const val DEBUG = false
+
+// Liquid Glass back arrow: a light blur, like the Now Bar's clear glass, and the PIN keys' tint.
+private const val GLASS_BLUR_RADIUS = 16
+private const val GLASS_TINT = 0x1FFFFFFF
 
 class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : View(context) {
 
@@ -452,6 +459,60 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
 
     override fun hasOverlappingRendering() = false
 
+    // [PenguinOS] Liquid Glass back arrow: while system-wide Liquid Glass is on, the arrow's
+    // bubble is a glass slab (a blur region SurfaceFlinger draws as glass) with a light tint and
+    // the lit rim, like the glass PIN keys, instead of a solid colour.
+    private var glassBlur: BackgroundBlurDrawable? = null
+    private val glassRadii = FloatArray(8)
+    private val glassTintPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private fun drawGlassBehind(canvas: Canvas, rect: RectF, edgeCorner: Float, farCorner: Float) {
+        val blur =
+            glassBlur ?: viewRootImpl?.createBackgroundBlurDrawable()?.also { glassBlur = it }
+                ?: return
+        blur.setVisible(true, false)
+        blur.setBlurRadius(GLASS_BLUR_RADIUS)
+        // The canvas is scaled, and mirrored for the right edge; the blur region takes its
+        // bounds from that, but its corners are given in screen orientation.
+        val s = scale.pos
+        val edge = edgeCorner * s
+        val far = farCorner * s
+        if (isLeftPanel) {
+            blur.setCornerRadius(edge, far, edge, far)
+        } else {
+            blur.setCornerRadius(far, edge, far, edge)
+        }
+        blur.alpha = (255 * backgroundAlpha.pos).toInt().coerceIn(0, 255)
+        blur.setBounds(
+            rect.left.toInt(),
+            rect.top.toInt(),
+            rect.right.toInt(),
+            rect.bottom.toInt(),
+        )
+        blur.draw(canvas)
+    }
+
+    private fun drawGlassRim(canvas: Canvas, rect: RectF, edgeCorner: Float, farCorner: Float) {
+        // The ColorOS style is frosted glass without the iOS-like lit rim.
+        if (LiquidGlass.cosStyle(context).value) return
+        glassRadii[0] = edgeCorner; glassRadii[1] = edgeCorner // top left (edge side)
+        glassRadii[2] = farCorner; glassRadii[3] = farCorner // top right
+        glassRadii[4] = farCorner; glassRadii[5] = farCorner // bottom right
+        glassRadii[6] = edgeCorner; glassRadii[7] = edgeCorner // bottom left
+        val alpha = backgroundAlpha.pos
+        if (alpha < 1f) {
+            canvas.saveLayerAlpha(rect, (255 * alpha).toInt().coerceIn(0, 255))
+        }
+        LiquidGlass.drawRim(canvas, rect, glassRadii, resources.displayMetrics.density)
+        if (alpha < 1f) canvas.restore()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        glassBlur?.setVisible(false, false)
+        glassBlur = null
+    }
+
     override fun onDraw(canvas: Canvas) {
         val edgeCorner = backgroundEdgeCornerRadius.pos
         val farCorner = backgroundFarCornerRadius.pos
@@ -482,10 +543,24 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
                     topRight = farCorner,
                     bottomRight = farCorner,
                 )
-        canvas.drawPath(
-            arrowBackground,
-            arrowBackgroundPaint.apply { alpha = (255 * backgroundAlpha.pos).toInt() },
-        )
+        val glass = LiquidGlass.isEnabled(context)
+        if (glass) {
+            drawGlassBehind(canvas, arrowBackgroundRect, edgeCorner, farCorner)
+            canvas.drawPath(
+                arrowBackground,
+                glassTintPaint.apply {
+                    color = GLASS_TINT
+                    alpha = (Color.alpha(GLASS_TINT) * backgroundAlpha.pos).toInt()
+                },
+            )
+            drawGlassRim(canvas, arrowBackgroundRect, edgeCorner, farCorner)
+        } else {
+            glassBlur?.setVisible(false, false)
+            canvas.drawPath(
+                arrowBackground,
+                arrowBackgroundPaint.apply { alpha = (255 * backgroundAlpha.pos).toInt() },
+            )
+        }
 
         val dx = arrowLength.pos
         val dy = arrowHeight.pos
