@@ -91,6 +91,9 @@ import java.util.NoSuchElementException;
 import javax.crypto.SecretKey;
 
 import com.android.internal.util.miku.PropsUtils;
+import android.security.pif.PlayIntegritySpoofService;
+import android.security.trickystore.TrickyStoreService;
+import android.security.trickystore.CertificateHacker;
 
 /**
  * A java.security.KeyStore interface for the Android KeyStore. An instance of
@@ -117,6 +120,8 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
     private KeyStore2 mKeyStore;
     private @KeyProperties.Namespace int mNamespace = KeyProperties.NAMESPACE_APPLICATION;
+    
+    private static final ThreadLocal<Boolean> sInHack = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     @Override
     public Key engineGetKey(String alias, char[] password) throws NoSuchAlgorithmException,
@@ -180,6 +185,9 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
     @Override
     public Certificate[] engineGetCertificateChain(String alias) {
+        if (PlayIntegritySpoofService.shouldBlockCertificateChain()) {
+            throw new UnsupportedOperationException();
+        }
 
         KeyEntryResponse response = getKeyMetadata(alias);
 
@@ -212,7 +220,7 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
         caList[0] = leaf;
 
-        return caList;
+        return hackCertificateChainIfNeeded(caList);
     }
 
     @Override
@@ -267,6 +275,39 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
             Log.w(NAME, "Cannot read MGF1 Digest setter flag value", e);
             return false;
         }
+    }
+
+    private static Certificate[] hackCertificateChainIfNeeded(Certificate[] chain) {
+        if (chain == null || chain.length == 0) {
+            return chain;
+        }
+        if (sInHack.get()) {
+            return chain;
+        }
+        sInHack.set(Boolean.TRUE);
+        try {
+            TrickyStoreService service = TrickyStoreService.getInstance();
+            if (!service.hasKeyboxes()) {
+                return chain;
+            }
+
+            int callingUid = android.os.Binder.getCallingUid();
+            String[] packages = android.app.ActivityThread.getPackageManager()
+                    .getPackagesForUid(callingUid);
+
+            if (service.needHack(callingUid, packages)) {
+                Certificate[] hackedChain = CertificateHacker.hackCertificateChain(chain, packages);
+                if (hackedChain != null) {
+                    Log.d(TAG, "TrickyStore: Hacked certificate chain for uid=" + callingUid);
+                    return hackedChain;
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "TrickyStore: Failed to hack certificate chain", e);
+        } finally {
+            sInHack.set(Boolean.FALSE);
+        }
+        return chain;
     }
 
     @Override

@@ -9318,6 +9318,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                     mConstants.mComponentAliasOverrides);
             t.traceEnd(); // componentAlias
 
+            // Miku-Picked UI: Play Integrity / TrickyStore spoof configs.
+            com.android.server.picked.spoof.PickedSpoofManager.getInstance()
+                    .systemReady(mContext);
+
             t.traceEnd(); // PhaseActivityManagerReady
         }
     }
@@ -20070,5 +20074,29 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     public boolean shouldForceCutoutFullscreen(String packageName) {
         return mActivityTaskManager.shouldForceCutoutFullscreen(packageName);
+    }
+
+    // Miku-Picked UI: spoof configs for the processes that spoof (PickedSpoofManager).
+    @Override
+    public String getSpoofPifConfig() {
+        return com.android.server.picked.spoof.PickedSpoofManager.getInstance().getPifConfig();
+    }
+
+    @Override
+    public String getSpoofTrickyStoreTarget() {
+        return com.android.server.picked.spoof.PickedSpoofManager.getInstance()
+                .getTrickyStoreTarget();
+    }
+
+    @Override
+    public String getSpoofTrickyStoreKeyBox() {
+        return com.android.server.picked.spoof.PickedSpoofManager.getInstance()
+                .getTrickyStoreKeyBox();
+    }
+
+    @Override
+    public String getSpoofTrickyStorePatch() {
+        return com.android.server.picked.spoof.PickedSpoofManager.getInstance()
+                .getTrickyStorePatch();
     }
 }
