@@ -69,6 +69,7 @@ import com.android.systemui.statusbar.headsup.shared.StatusBarNoHunBehavior;
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.NotificationIconContainerStatusBarViewBinder;
 import com.android.systemui.statusbar.notification.promoted.PromotedNotificationUi;
 import com.android.systemui.statusbar.phone.LyricViewController;
+import com.android.systemui.statusbar.phone.MediaLyricController;
 import com.android.systemui.statusbar.phone.NotificationIconContainer;
 import com.android.systemui.statusbar.phone.PhoneStatusBarView;
 import com.android.systemui.statusbar.phone.StatusBarHideIconsForBouncerManager;
@@ -172,6 +173,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
     private final StatusBarConfigurationControllerStore mStatusBarConfigurationControllerStore;
 
     private LyricController mLyricController;
+    private MediaLyricController mMediaLyricController;
 
     private List<String> mBlockedIcons = new ArrayList<>();
     private Map<Startable, Startable.State> mStartableStates = new ArrayMap<>();
@@ -408,6 +410,8 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         initNotificationIconArea();
         mLyricController = new LyricController(getContext(), mStatusBar);
         mHomeStatusBarComponent.getHeadsUpAppearanceController().setLyricViewController(mLyricController);
+        // Miku-Picked UI: synced lyrics for players without their own ticker lyrics (Spotify).
+        mMediaLyricController = new MediaLyricController(getContext(), mLyricController);
         Dependency.get(TunerService.class).addTunable(this, Settings.Secure.STATUS_BAR_SHOW_LYRIC);
         mSystemEventAnimator = getSystemEventAnimator();
         mCarrierConfigTracker.addCallback(mCarrierConfigCallback);
@@ -530,6 +534,10 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         mStatusBarIconController.removeIconGroup(mDarkIconManager);
         mCarrierConfigTracker.removeCallback(mCarrierConfigCallback);
         mCarrierConfigTracker.removeDataSubscriptionChangedListener(mDefaultDataListener);
+        if (mMediaLyricController != null) {
+            mMediaLyricController.destroy();
+            mMediaLyricController = null;
+        }
 
         for (Startable startable : mHomeStatusBarComponent.getStartables()) {
             mStartableStates.put(startable, Startable.State.STOPPING);
@@ -546,8 +554,12 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
     @Override
     public void onTuningChanged(String key, String newValue) {
         if (key.equals(Settings.Secure.STATUS_BAR_SHOW_LYRIC)) {
+            final boolean enabled = TunerService.parseIntegerSwitch(newValue, false);
             if (mLyricController != null) {
-                mLyricController.setEnabled(TunerService.parseIntegerSwitch(newValue, false));
+                mLyricController.setEnabled(enabled);
+            }
+            if (mMediaLyricController != null) {
+                mMediaLyricController.setEnabled(enabled);
             }
         }
     }

@@ -66,6 +66,13 @@ public abstract class LyricViewController implements
     private String mCurrentNotificationPackage = null;
     private int mCurrentNotificationId;
 
+    // Miku-Picked UI: a lyric line pushed in by MediaLyricController (e.g. Spotify lyrics
+    // fetched from lrclib), shown only when no app is driving the bar through notifications.
+    private boolean mNotificationLyricActive;
+    private boolean mExternalActive;
+    private CharSequence mExternalText;
+    private Drawable mExternalIcon;
+
     private ColorStateList mTintColorStateList;
 
     public LyricViewController(Context context, View statusBar) {
@@ -102,6 +109,8 @@ public abstract class LyricViewController implements
         mEnabled = enabled;
         if (!mEnabled && mStarted) {
             stopLyric();
+        } else if (mEnabled) {
+            showExternalIfActive();
         }
     }
 
@@ -120,16 +129,22 @@ public abstract class LyricViewController implements
                 TextUtils.equals(sbn.getPackageName(), mCurrentNotificationPackage);
         if (!isLyric) {
             if (isCurrentNotification) {
+                mNotificationLyricActive = false;
                 stopLyric();
+                showExternalIfActive();
             }
         } else {
             mCurrentNotificationPackage = sbn.getPackageName();
             mCurrentNotificationId = sbn.getId();
 
             if (notification.tickerText == null) {
+                mNotificationLyricActive = false;
                 stopLyric();
+                showExternalIfActive();
                 return;
             }
+            // An app pushing lyrics through notifications takes the bar over external lyrics.
+            mNotificationLyricActive = true;
             if (!isCurrentNotification || !mStarted ||
                     notification.extras.getBoolean(EXTRA_TICKER_ICON_SWITCH, false)) {
                 int iconId = notification.extras.getInt(EXTRA_TICKER_ICON, -1);
@@ -151,8 +166,43 @@ public abstract class LyricViewController implements
         boolean isCurrentNotification = mCurrentNotificationId == sbn.getId() &&
                 TextUtils.equals(sbn.getPackageName(), mCurrentNotificationPackage);
         if (isCurrentNotification) {
+            mNotificationLyricActive = false;
+            stopLyric();
+            showExternalIfActive();
+        }
+    }
+
+    /**
+     * Miku-Picked UI: show a lyric line from MediaLyricController. Ignored while an app is
+     * driving the bar through notifications (that is the app's own synced lyric).
+     */
+    public void setExternalLyric(CharSequence text, Drawable icon) {
+        mExternalActive = true;
+        mExternalText = text;
+        mExternalIcon = icon;
+        showExternalIfActive();
+    }
+
+    public void clearExternalLyric() {
+        mExternalActive = false;
+        mExternalText = null;
+        mExternalIcon = null;
+        if (!mNotificationLyricActive) {
             stopLyric();
         }
+    }
+
+    private void showExternalIfActive() {
+        if (!mEnabled || mNotificationLyricActive || !mExternalActive
+                || TextUtils.isEmpty(mExternalText)) {
+            return;
+        }
+        if (mExternalIcon != null) {
+            mIconSwitcher.setImageDrawable(mExternalIcon);
+            updateIconTint();
+        }
+        startLyric();
+        mTextSwitcher.setText(mExternalText);
     }
 
     @Override
