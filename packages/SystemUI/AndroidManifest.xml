@@ -91,6 +91,8 @@
     <uses-permission android:name="android.permission.MANAGE_USB" />
     <uses-permission android:name="android.permission.CONTROL_DISPLAY_BRIGHTNESS" />
     <uses-permission android:name="android.permission.DEVICE_POWER" />
+    <!-- Miku-Picked UI: FPS of the app in front for the performance overlay -->
+    <uses-permission android:name="android.permission.ACCESS_FPS_COUNTER" />
     <uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS" />
     <uses-permission android:name="android.permission.MASTER_CLEAR" />
     <uses-permission android:name="android.permission.VIBRATE" />
