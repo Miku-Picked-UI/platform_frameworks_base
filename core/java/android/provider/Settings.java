@@ -14151,6 +14151,33 @@ public final class Settings {
         @Readable
         public static final String LOCK_SCREEN_CUSTOM_CLOCK_AOD_ANIM = "lock_screen_custom_clock_aod_anim";
 
+        /**
+         * Play Integrity spoof config (PIF JSON or key=value), from Evolution X. Not readable
+         * by apps: system_server hands it only to the processes that spoof.
+         * @hide
+         */
+        public static final String SPOOF_PIF_CONFIG = "spoof_pif_config";
+
+        /**
+         * TrickyStore attestation targets, one package per line ("pkg" auto, "pkg?" leaf
+         * hack, "pkg!" generate, "pkg-" skip), from Evolution X.
+         * @hide
+         */
+        public static final String SPOOF_TRICKYSTORE_TARGET = "spoof_trickystore_target";
+
+        /**
+         * The keybox the user imported for TrickyStore (XML, or Base64 of it). Never readable
+         * by apps; system_server only returns it to target packages.
+         * @hide
+         */
+        public static final String SPOOF_TRICKYSTORE_KEYBOX = "spoof_trickystore_keybox";
+
+        /**
+         * TrickyStore security patch override (YYYY-MM-DD, or per-package sections).
+         * @hide
+         */
+        public static final String SPOOF_TRICKYSTORE_PATCH = "spoof_trickystore_patch";
+
         // ---- end Miku-Picked UI (Secure) ----
         
         /**
