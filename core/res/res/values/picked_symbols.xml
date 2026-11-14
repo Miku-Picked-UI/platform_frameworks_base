@@ -14,4 +14,7 @@
     <java-symbol type="string" name="sleep_mode_notification_content" />
     <java-symbol type="string" name="sleep_mode_enabled_toast" />
     <java-symbol type="string" name="sleep_mode_disabled_toast" />
+
+    <!-- Games without android:appCategory="game" -->
+    <java-symbol type="array" name="config_pickedGamePackages" />
 </resources>

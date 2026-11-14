@@ -1045,6 +1045,11 @@ public final class GameManagerService extends IGameManagerService.Stub {
         try {
             final ApplicationInfo applicationInfo = mPackageManager
                     .getApplicationInfoAsUser(packageName, PackageManager.MATCH_ALL, userId);
+            // Miku-Picked UI: games that don't declare their category.
+            if (ArrayUtils.contains(mContext.getResources().getStringArray(
+                    com.android.internal.R.array.config_pickedGamePackages), packageName)) {
+                return true;
+            }
             return applicationInfo.category == ApplicationInfo.CATEGORY_GAME;
         } catch (PackageManager.NameNotFoundException e) {
             return false;
@@ -2010,8 +2015,11 @@ public final class GameManagerService extends IGameManagerService.Stub {
     private String[] getInstalledGamePackageNames(@UserIdInt int userId) {
         final List<PackageInfo> packages =
                 mPackageManager.getInstalledPackagesAsUser(0, userId);
-        return packages.stream().filter(e -> e.applicationInfo != null && e.applicationInfo.category
-                        == ApplicationInfo.CATEGORY_GAME)
+        final String[] pickedGames = mContext.getResources().getStringArray(
+                com.android.internal.R.array.config_pickedGamePackages);
+        return packages.stream().filter(e -> e.applicationInfo != null
+                        && (e.applicationInfo.category == ApplicationInfo.CATEGORY_GAME
+                                || ArrayUtils.contains(pickedGames, e.packageName)))
                 .map(e -> e.packageName)
                 .toArray(String[]::new);
     }
