@@ -99,6 +99,11 @@ public final class DozeServiceHost implements DozeHost {
             "persist.sysui.wake_performs_auth", true);
     private boolean mDozingRequested;
     private boolean mPulsing;
+    // [Lunaris AOSP] Edge Aurora pulse state.
+    private boolean mPulseStarted;
+    private PulseCallback mAuroraPulseCallback;
+    private boolean mAuroraPulseStarted;
+    private float mAuroraPulseBrightness = -1f;
     private final WakefulnessLifecycle mWakefulnessLifecycle;
     private final SysuiStatusBarStateController mStatusBarStateController;
     private final DeviceProvisionedController mDeviceProvisionedController;
@@ -302,6 +307,66 @@ public final class DozeServiceHost implements DozeHost {
     }
 
     @Override
+    public boolean requestAuroraPulse(float brightness, @NonNull PulseCallback callback) {
+        Assert.isMainThread();
+        if (!mDozingRequested || !mStatusBarStateController.isDozing()
+                || mPowerManager.isInteractive() || isPulsingBlocked()
+                || isAlwaysOnSuppressed() || mAuroraPulseCallback != null) {
+            return false;
+        }
+        mAuroraPulseCallback = callback;
+        mAuroraPulseStarted = false;
+        mAuroraPulseBrightness = Math.max(0.02f, Math.min(0.5f, brightness));
+        dispatchAuroraPulseChanged();
+        boolean accepted = false;
+        for (Callback hostCallback : mCallbacks) {
+            if (hostCallback.onAuroraPulseRequested(this::finishAuroraPulse)) {
+                accepted = true;
+                break;
+            }
+        }
+        if (!accepted) {
+            finishAuroraPulse();
+            return false;
+        }
+        if (mAuroraPulseCallback != callback) return false;
+        mDozeScrimController.cancelPendingPulseTimeout();
+        if (mPulseStarted) startAuroraPulse();
+        return mAuroraPulseCallback == callback;
+    }
+
+    @Override
+    public void stopAuroraPulse() {
+        if (mAuroraPulseCallback != null) stopPulsing();
+    }
+
+    @Override
+    public float getAuroraPulseBrightness() {
+        return mAuroraPulseBrightness;
+    }
+
+    private void startAuroraPulse() {
+        if (mAuroraPulseCallback == null || mAuroraPulseStarted) return;
+        mAuroraPulseStarted = true;
+        mDozeScrimController.cancelPendingPulseTimeout();
+        mAuroraPulseCallback.onPulseStarted();
+    }
+
+    private void finishAuroraPulse() {
+        final PulseCallback callback = mAuroraPulseCallback;
+        if (callback == null) return;
+        mAuroraPulseCallback = null;
+        mAuroraPulseStarted = false;
+        mAuroraPulseBrightness = -1f;
+        dispatchAuroraPulseChanged();
+        callback.onPulseFinished();
+    }
+
+    private void dispatchAuroraPulseChanged() {
+        for (Callback callback : mCallbacks) callback.onAuroraPulseChanged();
+    }
+
+    @Override
     public void pulseWhileDozing(@NonNull PulseCallback callback, int reason) {
         if (reason == DozeLog.PULSE_REASON_SENSOR_LONG_PRESS) {
             mPowerManager.wakeUp(SystemClock.uptimeMillis(), PowerManager.WAKE_REASON_GESTURE,
@@ -326,17 +391,21 @@ public final class DozeServiceHost implements DozeHost {
                 callback.onPulseStarted(); // requestState(DozeMachine.State.DOZE_PULSING)
                 mCentralSurfaces.updateNotificationPanelTouchState();
                 setPulsing(true);
+                mPulseStarted = true;
+                startAuroraPulse();
             }
 
             @Override
             public void onPulseFinished() {
                 mPulsing = false;
+                mPulseStarted = false;
                 callback.onPulseFinished(); // requestState(DozeMachine.State.DOZE_PULSE_DONE)
                 mCentralSurfaces.updateNotificationPanelTouchState();
                 if (mScrimController != null) {
                     mScrimController.setWakeLockScreenSensorActive(false);
                 }
                 setPulsing(false);
+                finishAuroraPulse();
             }
 
             private void setPulsing(boolean pulsing) {
@@ -359,6 +428,7 @@ public final class DozeServiceHost implements DozeHost {
 
     @Override
     public void stopDozing() {
+        finishAuroraPulse();
         if (mDozingRequested) {
             mDozingRequested = false;
             updateDozing();
@@ -424,6 +494,7 @@ public final class DozeServiceHost implements DozeHost {
     public void stopPulsing() {
         setPulsePending(false); // prevent any pending pulses from continuing
         mDozeScrimController.pulseOutNow();
+        finishAuroraPulse();
     }
 
     @Override
@@ -634,7 +705,8 @@ public final class DozeServiceHost implements DozeHost {
                     mDozeScrimController.cancelPendingPulseTimeout();
                 }
             }
-            if (!isHeadsUp && !mHeadsUpManager.hasNotifications()) {
+            if (!isHeadsUp && !mHeadsUpManager.hasNotifications()
+                    && mAuroraPulseCallback == null) {
                 // There are no longer any notifications to show.  We should end the
                 // pulse now.
                 stopPulsing();

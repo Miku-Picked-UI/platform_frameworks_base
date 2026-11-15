@@ -30,6 +30,12 @@ public interface DozeHost {
     void removeCallback(@NonNull Callback callback);
     void startDozing();
     void pulseWhileDozing(@NonNull PulseCallback callback, int reason);
+    /** [Lunaris AOSP] Edge Aurora: a doze pulse at its own brightness. */
+    default boolean requestAuroraPulse(float brightness, @NonNull PulseCallback callback) {
+        return false;
+    }
+    default void stopAuroraPulse() {}
+    default float getAuroraPulseBrightness() { return -1f; }
     void stopDozing();
     @MainThread
     void dozeTimeTick();
@@ -107,6 +113,13 @@ public interface DozeHost {
     boolean isAlwaysOnSuppressed();
 
     interface Callback {
+        /** [Lunaris AOSP] Edge Aurora asks for a pulse; true if one is starting. */
+        default boolean onAuroraPulseRequested(Runnable onPulseSuppressedListener) {
+            return false;
+        }
+
+        default void onAuroraPulseChanged() {}
+
         /**
          * Called when a high priority notification is added.
          * @param onPulseSuppressedListener A listener that is invoked if the pulse is being

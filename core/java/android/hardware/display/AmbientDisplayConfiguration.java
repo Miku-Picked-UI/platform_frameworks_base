@@ -30,6 +30,7 @@ import android.util.SparseArray;
 
 import com.android.internal.R;
 import com.android.internal.util.ArrayUtils;
+import com.android.internal.util.lunaris.EdgeAuroraConfig;
 
 import java.util.Map;
 
@@ -100,7 +101,17 @@ public class AmbientDisplayConfiguration {
                 || tapGestureEnabled(user)
                 || doubleTapGestureEnabled(user)
                 || quickPickupSensorEnabled(user)
-                || screenOffUdfpsEnabled(user);
+                || screenOffUdfpsEnabled(user)
+                || edgeAuroraEnabled(user);
+    }
+
+    /** [Lunaris AOSP] Edge Aurora wakes the screen into a doze pulse for notifications. */
+    private boolean edgeAuroraEnabled(int user) {
+        return ambientDisplayAvailable() && !accessibilityInversionEnabled(user)
+                && Settings.System.getIntForUser(mContext.getContentResolver(),
+                        EdgeAuroraConfig.ENABLED, 0, user) == 1
+                && Settings.System.getIntForUser(mContext.getContentResolver(),
+                        EdgeAuroraConfig.WAKE, 1, user) == 1;
     }
 
     /** @hide */
