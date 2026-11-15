@@ -8,6 +8,7 @@ package com.android.systemui.picked
 import com.android.systemui.CoreStartable
 import com.android.systemui.edgeaurora.EdgeAuroraController
 import com.android.systemui.penguin.VolumePanelLooks
+import com.android.systemui.picked.refreshrate.PickedRefreshRateController
 import com.android.systemui.picked.oneuisland.OneUislandHost
 import com.android.systemui.picked.perfoverlay.PerfOverlayController
 import com.android.systemui.picked.tether.TetherLteController
@@ -74,6 +75,12 @@ interface PickedModule {
     @IntoMap
     @ClassKey(EdgeAuroraController::class)
     fun bindEdgeAuroraController(controller: EdgeAuroraController): CoreStartable
+
+    /** [Miku-Picked UI] Per-app refresh rate for battery */
+    @Binds
+    @IntoMap
+    @ClassKey(PickedRefreshRateController::class)
+    fun bindPickedRefreshRateController(controller: PickedRefreshRateController): CoreStartable
 
     /** [crDroid / Evolution X / Lunaris] FPS and CPU/GPU info overlay */
     @Binds
