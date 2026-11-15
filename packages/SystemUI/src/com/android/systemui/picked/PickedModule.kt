@@ -6,8 +6,10 @@
 package com.android.systemui.picked
 
 import com.android.systemui.CoreStartable
+import com.android.systemui.edgeaurora.EdgeAuroraController
 import com.android.systemui.penguin.VolumePanelLooks
 import com.android.systemui.picked.oneuisland.OneUislandHost
+import com.android.systemui.picked.perfoverlay.PerfOverlayController
 import com.android.systemui.picked.tether.TetherLteController
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.pipeline.shared.TileSpec
@@ -66,6 +68,18 @@ interface PickedModule {
     @IntoMap
     @ClassKey(TetherLteController::class)
     fun bindTetherLteController(controller: TetherLteController): CoreStartable
+
+    /** [Lunaris AOSP] Edge Aurora notification lighting */
+    @Binds
+    @IntoMap
+    @ClassKey(EdgeAuroraController::class)
+    fun bindEdgeAuroraController(controller: EdgeAuroraController): CoreStartable
+
+    /** [crDroid / Evolution X / Lunaris] FPS and CPU/GPU info overlay */
+    @Binds
+    @IntoMap
+    @ClassKey(PerfOverlayController::class)
+    fun bindPerfOverlayController(controller: PerfOverlayController): CoreStartable
 
     companion object {
         /** [Miku-Picked UI] Wireless PowerShare tile config */

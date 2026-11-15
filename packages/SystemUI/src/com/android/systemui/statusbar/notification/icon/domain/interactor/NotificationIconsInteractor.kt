@@ -20,6 +20,7 @@ import android.graphics.drawable.Icon
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryBypassInteractor
+import com.android.systemui.edgeaurora.EdgeAuroraRepository
 import com.android.systemui.kairos.util.Either
 import com.android.systemui.kairos.util.mergeSecond
 import com.android.systemui.statusbar.data.repository.NotificationListenerSettingsRepository
@@ -241,6 +242,7 @@ constructor(
     @Background bgContext: CoroutineContext,
     iconsInteractor: NotificationIconsInteractor,
     settingsRepository: NotificationListenerSettingsRepository,
+    edgeAuroraRepository: EdgeAuroraRepository = EdgeAuroraRepository(),
 ) {
     val statusBarNotifs: Flow<Set<ActiveNotificationIconModel>> =
         settingsRepository.showSilentStatusIcons
@@ -252,6 +254,10 @@ constructor(
                     showDismissed = false,
                     showRepliedMessages = false,
                 )
+            }
+            // [Lunaris AOSP] Edge Aurora hides the icons of notifications it is showing.
+            .combine(edgeAuroraRepository.suppressedStatusBarNotificationKeys) { notifs, hidden ->
+                if (hidden.isEmpty()) notifs else notifs.filter { it.notifKey !in hidden }.toSet()
             }
             .flowOn(bgContext)
 }

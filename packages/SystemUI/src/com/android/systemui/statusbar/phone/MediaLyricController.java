@@ -5,7 +5,10 @@
 
 package com.android.systemui.statusbar.phone;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.drawable.Drawable;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
@@ -13,6 +16,7 @@ import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
@@ -55,7 +59,9 @@ public class MediaLyricController {
     private static final String USER_AGENT =
             "MikuPickedUI-StatusBarLyrics (https://github.com/Miku-Picked-UI)";
     private static final int HTTP_TIMEOUT_MS = 8000;
-    private static final long TICK_MS = 300;
+    // Upper bound between ticks; normally the next tick is timed to the next lyric line.
+    private static final long TICK_MS = 2000;
+    private static final long MIN_TICK_MS = 50;
 
     private static final Pattern LRC_LINE =
             Pattern.compile("((?:\\[\\d{1,2}:\\d{2}(?:[.:]\\d{1,3})?\\])+)(.*)");
@@ -102,9 +108,11 @@ public class MediaLyricController {
         public void run() {
             mHandler.removeCallbacks(this);
             if (!mEnabled) return;
+            // Nobody sees the status bar with the screen off; SCREEN_ON resumes the ticks.
+            if (mPower != null && !mPower.isInteractive()) return;
             updateCurrentLine();
             if (isPlaying()) {
-                mHandler.postDelayed(this, TICK_MS);
+                mHandler.postDelayed(this, nextTickDelayMs());
             }
         }
     };
@@ -123,7 +131,21 @@ public class MediaLyricController {
         mContext = context;
         mLyric = lyric;
         mSessionManager = context.getSystemService(MediaSessionManager.class);
+        mPower = context.getSystemService(PowerManager.class);
     }
+
+    private final PowerManager mPower;
+    private boolean mScreenReceiverRegistered;
+    private final BroadcastReceiver mScreenReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                scheduleTick();
+            } else {
+                mHandler.removeCallbacks(mTick);
+            }
+        }
+    };
 
     public void setEnabled(boolean enabled) {
         if (mEnabled == enabled) return;
@@ -136,11 +158,20 @@ public class MediaLyricController {
             } catch (Exception e) {
                 Log.w(TAG, "Can't watch media sessions", e);
             }
+            final IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_ON);
+            filter.addAction(Intent.ACTION_SCREEN_OFF);
+            mContext.registerReceiver(mScreenReceiver, filter, null, mHandler,
+                    Context.RECEIVER_NOT_EXPORTED);
+            mScreenReceiverRegistered = true;
             pickSession();
         } else {
             try {
                 mSessionManager.removeOnActiveSessionsChangedListener(mSessionsListener);
             } catch (Exception ignored) {
+            }
+            if (mScreenReceiverRegistered) {
+                mContext.unregisterReceiver(mScreenReceiver);
+                mScreenReceiverRegistered = false;
             }
             detachController();
             clearLyric();
@@ -327,6 +358,27 @@ public class MediaLyricController {
         if (!mEnabled) return;
         mHandler.removeCallbacks(mTick);
         mHandler.post(mTick);
+    }
+
+    /** Time until the next lyric line starts, so the bar isn't polled in between. */
+    private long nextTickDelayMs() {
+        final List<LyricLine> lines = mLines;
+        if (lines == null || lines.isEmpty()) return TICK_MS;
+        final long pos = currentPositionMs();
+        for (int i = 0; i < lines.size(); i++) {
+            final long t = lines.get(i).timeMs;
+            if (t > pos) {
+                float speed = 1f;
+                final PlaybackState state = mController != null
+                        ? mController.getPlaybackState() : null;
+                if (state != null && state.getPlaybackSpeed() > 0f) {
+                    speed = state.getPlaybackSpeed();
+                }
+                final long delay = (long) ((t - pos) / speed) + 20;
+                return Math.max(MIN_TICK_MS, Math.min(TICK_MS, delay));
+            }
+        }
+        return TICK_MS;
     }
 
     private long currentPositionMs() {
