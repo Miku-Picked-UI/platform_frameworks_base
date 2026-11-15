@@ -133,6 +133,10 @@ public class ClipboardListener implements
         String clipSource = mClipboardManagerForUser.getPrimaryClipSource();
         ClipData clipData = mClipboardManagerForUser.getPrimaryClip();
 
+        // Miku-Picked UI: clipboard history (text only, never sensitive clips)
+        com.android.systemui.picked.clipboard.ClipboardHistory.INSTANCE.record(
+                mContext, mUserTracker.getUserId(), clipData);
+
         if (overrideSuppressOverlayCondition()) {
             if (mClipboardOverlaySuppressionController.shouldSuppressOverlay(clipData, clipSource,
                     Build.IS_EMULATOR)) {

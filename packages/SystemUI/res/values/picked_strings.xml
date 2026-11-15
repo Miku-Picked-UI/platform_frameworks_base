@@ -61,4 +61,15 @@
     <string name="picked_charging_anim_m">%1$d min</string>
     <string name="picked_charging_anim_wired">Charging</string>
     <string name="picked_charging_anim_wireless">Charging wirelessly</string>
+    <!-- [Miku-Picked UI] Clipboard history -->
+    <string name="picked_clipboard_title">Clipboard</string>
+    <string name="picked_clipboard_close">Close</string>
+    <string name="picked_clipboard_clear">Clear</string>
+    <string name="picked_clipboard_empty">Nothing copied yet. Copied text shows up here.</string>
+    <string name="picked_clipboard_off">Clipboard history is turned off in Picked features.</string>
+    <string name="picked_clipboard_copied">Copied</string>
+    <string name="picked_clipboard_pin">Pin</string>
+    <string name="picked_clipboard_unpin">Unpin</string>
+    <string name="picked_clipboard_delete">Delete</string>
+    <string name="picked_clipboard_pinned">Pinned</string>
 </resources>
