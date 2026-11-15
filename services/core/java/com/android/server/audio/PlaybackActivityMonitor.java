@@ -53,6 +53,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.SparseArray;
 import android.util.SparseIntArray;
 
 import com.android.internal.annotations.GuardedBy;
@@ -175,6 +176,41 @@ public final class PlaybackActivityMonitor
         mMuteAwaitConnectionTimeoutCb = muteTimeoutCallback;
         mIsStreamMutedCb = isStreamMutedCb;
         initEventHandler();
+    }
+
+    //=================================================================
+    // Miku-Picked UI: per-app volume (PickedAppAudio). A volume multiplier per uid, put on each of
+    // the app's players through IPlayer.setVolume, like call muting does.
+    @GuardedBy("mPlayerLock")
+    private SparseArray<Float> mPickedAppVolumes = new SparseArray<>();
+
+    /** Per-app volume for a uid, 1 when none is set. */
+    @GuardedBy("mPlayerLock")
+    private float pickedVolumeLocked(int uid) {
+        return mPickedAppVolumes.get(uid, 1.0f);
+    }
+
+    @GuardedBy("mPlayerLock")
+    private void applyPickedVolumeLocked(AudioPlaybackConfiguration apc, float volume) {
+        if (mMutedPlayers.contains(apc.getPlayerInterfaceId())) return; // muted for a call
+        try {
+            apc.getPlayerProxy().setVolume(volume);
+        } catch (Exception e) {
+            Log.w(TAG, "per-app volume: cannot set piid " + apc.getPlayerInterfaceId(), e);
+        }
+    }
+
+    /** Replaces the per-app volumes and applies the changes to the current players. */
+    void setPickedAppVolumes(SparseArray<Float> volumes) {
+        synchronized (mPlayerLock) {
+            final SparseArray<Float> old = mPickedAppVolumes;
+            mPickedAppVolumes = volumes;
+            for (AudioPlaybackConfiguration apc : mPlayers.values()) {
+                final int uid = apc.getClientUid();
+                final float newVol = volumes.get(uid, 1.0f);
+                if (newVol != old.get(uid, 1.0f)) applyPickedVolumeLocked(apc, newVol);
+            }
+        }
     }
 
     //=================================================================
@@ -411,6 +447,9 @@ public final class PlaybackActivityMonitor
                 if (event == AudioPlaybackConfiguration.PLAYER_STATE_STARTED) {
                     mDuckingManager.checkDuck(apc);
                     mFadeOutManager.checkFade(apc);
+                    // Miku-Picked UI: per-app volume
+                    final float pickedVolume = pickedVolumeLocked(apc.getClientUid());
+                    if (pickedVolume != 1.0f) applyPickedVolumeLocked(apc, pickedVolume);
                 }
                 if (doNotLog) {
                     // do not dispatch events for "ignored" players
@@ -934,7 +973,8 @@ public final class PlaybackActivityMonitor
                     try {
                         sEventLogger.enqueue(new EventLogger.StringEvent("call: unmuting piid:"
                                 + piid).printLog(TAG));
-                        apc.getPlayerProxy().setVolume(1.0f);
+                        // Miku-Picked UI: back to the app's own volume, not always 100 %
+                        apc.getPlayerProxy().setVolume(pickedVolumeLocked(apc.getClientUid()));
                     } catch (Exception e) {
                         Log.e(TAG, "call: error unmuting player " + piid + " uid:"
                                 + apc.getClientUid(), e);

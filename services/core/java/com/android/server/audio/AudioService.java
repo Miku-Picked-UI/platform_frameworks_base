@@ -1963,6 +1963,8 @@ public class AudioService extends IAudioService.Stub
 
     public void onSystemReady() {
         mSystemReady = true;
+        // Miku-Picked UI: per-app volume and separate app sound
+        new PickedAppAudio(mContext, mPlaybackMonitor).start();
         setupPermissionListener();
         scheduleLoadSoundEffects();
         mDeviceBroker.onSystemReady();
