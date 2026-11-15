@@ -10,4 +10,8 @@
     <!-- Now Bar (lockscreen media pill) -->
     <item type="id" name="picked_now_bar" />
     <item type="id" name="picked_now_bar_barrier" />
+
+    <!-- [Lunaris AOSP] Lockscreen app widgets -->
+    <item type="id" name="keyguard_app_widgets" />
+    <item type="id" name="keyguard_app_widget_anchor" />
 </resources>

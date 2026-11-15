@@ -33,6 +33,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultShortcutsSec
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusBarSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultUdfpsAccessibilityOverlaySection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule.Companion.KEYGUARD_AMBIENT_INDICATION_AREA_SECTION
+import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardAppWidgetSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardClockStyleSection
 import com.android.systemui.picked.nowbar.NowBarSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSliceViewSection
@@ -68,6 +69,7 @@ constructor(
     smartspaceSection: SmartspaceSection,
     keyguardSliceViewSection: KeyguardSliceViewSection,
     keyguardClockStyleSection: KeyguardClockStyleSection,
+    keyguardAppWidgetSection: KeyguardAppWidgetSection,
     nowBarSection: NowBarSection,
     udfpsAccessibilityOverlaySection: DefaultUdfpsAccessibilityOverlaySection,
 ) : KeyguardBlueprint {
@@ -89,6 +91,7 @@ constructor(
             clockSection,
             keyguardSliceViewSection,
             keyguardClockStyleSection, // Miku-Picked UI: custom clocks (Evolution X)
+            keyguardAppWidgetSection, // [Lunaris AOSP] lockscreen app widgets, after the clock
             nowBarSection, // Miku-Picked UI: Now Bar (lockscreen media)
             defaultDeviceEntrySection,
             udfpsAccessibilityOverlaySection, // Add LAST: Intentionally has z-order above others

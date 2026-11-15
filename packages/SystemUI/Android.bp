@@ -514,9 +514,13 @@ android_library {
         "compose/facade/enabled/src/**/*.kt",
     ],
     defaults: ["SystemUI-srcs-defaults"],
+    // [Lunaris AOSP] Lockscreen app widgets: provider, config activity, restore receiver
+    additional_manifests: ["LockscreenWidgetsManifest.xml"],
     static_libs: [
         // [OneUisland] Dynamic island, see vendor/miku/oneuisland
         "OneUisland-island",
+        // [Lunaris AOSP] Lockscreen app widgets
+        "LunarisLockscreenWidgets",
         "//frameworks/libs/systemui:compilelib",
         "com.android.systemui.pods-api-aosp-handheld",
         "SystemUI-res",
