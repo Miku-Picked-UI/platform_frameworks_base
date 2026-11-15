@@ -48,6 +48,7 @@ import android.app.IGameStateListener;
 import android.app.StatsManager;
 import android.app.UidObserver;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -81,6 +82,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.DeviceConfig;
 import android.provider.DeviceConfig.Properties;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.AtomicFile;
@@ -1041,16 +1043,43 @@ public final class GameManagerService extends IGameManagerService.Stub {
         return config.getAvailableGameModes();
     }
 
-    private boolean isPackageGame(String packageName, @UserIdInt int userId) {
-        try {
-            final ApplicationInfo applicationInfo = mPackageManager
-                    .getApplicationInfoAsUser(packageName, PackageManager.MATCH_ALL, userId);
-            // Miku-Picked UI: games that don't declare their category.
+    // Miku-Picked UI: the user's own game list (Picked features -> Games). Comma-separated
+    // package names: apps added as games, and games (by manifest category) taken off the list.
+    // With no list saved yet, config_pickedGamePackages is the added set.
+    private static final String PICKED_GAME_PACKAGES = "picked_game_packages";
+    private static final String PICKED_GAME_PACKAGES_EXCLUDED = "picked_game_packages_excluded";
+
+    private boolean isPickedGame(String packageName, int category, @UserIdInt int userId) {
+        final ContentResolver cr = mContext.getContentResolver();
+        if (containsPackage(Settings.Secure.getStringForUser(cr,
+                PICKED_GAME_PACKAGES_EXCLUDED, userId), packageName)) {
+            return false;
+        }
+        final String added = Settings.Secure.getStringForUser(cr, PICKED_GAME_PACKAGES, userId);
+        if (added == null) {
             if (ArrayUtils.contains(mContext.getResources().getStringArray(
                     com.android.internal.R.array.config_pickedGamePackages), packageName)) {
                 return true;
             }
-            return applicationInfo.category == ApplicationInfo.CATEGORY_GAME;
+        } else if (containsPackage(added, packageName)) {
+            return true;
+        }
+        return category == ApplicationInfo.CATEGORY_GAME;
+    }
+
+    private static boolean containsPackage(String list, String packageName) {
+        if (TextUtils.isEmpty(list)) return false;
+        for (String p : list.split(",")) {
+            if (p.trim().equals(packageName)) return true;
+        }
+        return false;
+    }
+
+    private boolean isPackageGame(String packageName, @UserIdInt int userId) {
+        try {
+            final ApplicationInfo applicationInfo = mPackageManager
+                    .getApplicationInfoAsUser(packageName, PackageManager.MATCH_ALL, userId);
+            return isPickedGame(packageName, applicationInfo.category, userId);
         } catch (PackageManager.NameNotFoundException e) {
             return false;
         }
@@ -2015,11 +2044,8 @@ public final class GameManagerService extends IGameManagerService.Stub {
     private String[] getInstalledGamePackageNames(@UserIdInt int userId) {
         final List<PackageInfo> packages =
                 mPackageManager.getInstalledPackagesAsUser(0, userId);
-        final String[] pickedGames = mContext.getResources().getStringArray(
-                com.android.internal.R.array.config_pickedGamePackages);
         return packages.stream().filter(e -> e.applicationInfo != null
-                        && (e.applicationInfo.category == ApplicationInfo.CATEGORY_GAME
-                                || ArrayUtils.contains(pickedGames, e.packageName)))
+                        && isPickedGame(e.packageName, e.applicationInfo.category, userId))
                 .map(e -> e.packageName)
                 .toArray(String[]::new);
     }
