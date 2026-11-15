@@ -36,6 +36,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeGuideline
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeMediaSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeNotificationStackScrollLayoutSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardClockStyleSection
+import com.android.systemui.picked.depthwallpaper.DepthWallpaperSection
 import com.android.systemui.picked.nowbar.NowBarSection
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.util.kotlin.getOrNull
@@ -70,6 +71,7 @@ constructor(
     mediaSection: SplitShadeMediaSection,
     keyguardClockStyleSection: KeyguardClockStyleSection,
     nowBarSection: NowBarSection,
+    depthWallpaperSection: DepthWallpaperSection,
 ) : KeyguardBlueprint {
     override val id: String = ID
 
@@ -91,6 +93,7 @@ constructor(
             clockSection,
             mediaSection,
             keyguardClockStyleSection, // Miku-Picked UI: custom clocks (Evolution X)
+            depthWallpaperSection, // Miku-Picked UI: depth wallpaper subject, above the clock
             nowBarSection, // Miku-Picked UI: Now Bar (lockscreen media)
             defaultDeviceEntrySection, // Add LAST: Intentionally has z-order above other views.
         )

@@ -35,6 +35,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultUdfpsAccessi
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule.Companion.KEYGUARD_AMBIENT_INDICATION_AREA_SECTION
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardAppWidgetSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardClockStyleSection
+import com.android.systemui.picked.depthwallpaper.DepthWallpaperSection
 import com.android.systemui.picked.nowbar.NowBarSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSliceViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
@@ -71,6 +72,7 @@ constructor(
     keyguardClockStyleSection: KeyguardClockStyleSection,
     keyguardAppWidgetSection: KeyguardAppWidgetSection,
     nowBarSection: NowBarSection,
+    depthWallpaperSection: DepthWallpaperSection,
     udfpsAccessibilityOverlaySection: DefaultUdfpsAccessibilityOverlaySection,
 ) : KeyguardBlueprint {
     override val id: String = DEFAULT
@@ -91,6 +93,7 @@ constructor(
             clockSection,
             keyguardSliceViewSection,
             keyguardClockStyleSection, // Miku-Picked UI: custom clocks (Evolution X)
+            depthWallpaperSection, // Miku-Picked UI: depth wallpaper subject, above the clock
             keyguardAppWidgetSection, // [Lunaris AOSP] lockscreen app widgets, after the clock
             nowBarSection, // Miku-Picked UI: Now Bar (lockscreen media)
             defaultDeviceEntrySection,
