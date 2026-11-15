@@ -79,6 +79,13 @@ public final class PickedSpoofManager {
      * resets it to 0 and clears SPOOF_PIF_CONFIG, which makes a fetch run within seconds.
      */
     public static final String LAST_AUTO_FETCH_KEY = "spoof_pif_last_auto_fetch";
+
+    /**
+     * Settings.Secure: the Pixel device profile the user picked (a codename from
+     * PixelDeviceRepository.DEVICE_MODEL_MAP), or empty for the automatic default. The next
+     * fingerprint fetch uses this device instead of the default.
+     */
+    public static final String PIF_PROFILE_KEY = "spoof_pif_profile";
     private static final long REFRESH_INTERVAL_MS = TimeUnit.HOURS.toMillis(1);
     private static final long BOOTSTRAP_INITIAL_DELAY_MS = TimeUnit.MINUTES.toMillis(2);
     private static final long BOOTSTRAP_RETRY_MS = TimeUnit.MINUTES.toMillis(10);
@@ -408,10 +415,16 @@ public final class PickedSpoofManager {
                 : PixelDeviceRepository.getDaysUntilExpiry(canaryMonth, releaseDate);
         if (daysLeft != null && daysLeft > REFETCH_WINDOW_DAYS) return;
 
+        final String chosenProfile = Settings.Secure.getStringForUser(
+                mResolver, PIF_PROFILE_KEY, UserHandle.USER_SYSTEM);
         final PixelDeviceRepository.PixelProfile matched = runBounded(mFingerprintExecutor, () -> {
             final List<PixelDeviceRepository.PixelProfile> profiles =
                     PixelDeviceRepository.getProfiles(mContext, true);
-            final String codename = PixelDeviceRepository.getDefaultPifCodename(profiles);
+            // Miku-Picked UI: the user's chosen device profile, or the automatic default.
+            final String codename = (chosenProfile != null
+                    && PixelDeviceRepository.DEVICE_MODEL_MAP.containsKey(chosenProfile))
+                    ? chosenProfile
+                    : PixelDeviceRepository.getDefaultPifCodename(profiles);
             return PixelDeviceRepository.getProfileByCodename(mContext, codename, false);
         });
         if (matched == null || !PixelDeviceRepository.isValidFingerprint(matched.fingerprint)) {
