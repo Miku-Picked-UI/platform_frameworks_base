@@ -35,6 +35,11 @@ import javax.inject.Inject
  * when tethering stops or the feature is turned off, also across a SystemUI restart.
  *
  * Settings.Secure [SETTING_ENABLED] (on by default) turns it off.
+ *
+ * The same restriction also goes on when the screen has been off for [SCREEN_OFF_DELAY_MS]
+ * (Settings.Secure [SETTING_SCREEN_OFF], on by default): on standby the Exynos modem burns a lot
+ * holding 5G NSA for nothing, LTE is plenty for push messages, and 5G comes back as soon as the
+ * screen turns on. Both share this controller because they share the power reason mask.
  */
 @SysUISingleton
 class TetherLteController
@@ -45,6 +50,11 @@ constructor(
 ) : CoreStartable {
 
     private var tethering = false
+    private var screenOffLong = false
+    private val screenOffTimeout = Runnable {
+        screenOffLong = true
+        update()
+    }
     private var retries = 0
     private val retry = Runnable { update() }
 
@@ -68,12 +78,36 @@ constructor(
             bgHandler,
             Context.RECEIVER_EXPORTED,
         )
-        context.contentResolver.registerContentObserver(
-            Settings.Secure.getUriFor(SETTING_ENABLED),
-            false,
+        val settingsObserver =
             object : ContentObserver(bgHandler) {
                 override fun onChange(selfChange: Boolean) = update()
+            }
+        context.contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(SETTING_ENABLED), false, settingsObserver)
+        context.contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(SETTING_SCREEN_OFF), false, settingsObserver)
+        // Screen off for a while: LTE only; screen on: 5G straight back.
+        val screenFilter =
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            }
+        context.registerReceiver(
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    bgHandler.removeCallbacks(screenOffTimeout)
+                    if (intent.action == Intent.ACTION_SCREEN_OFF) {
+                        bgHandler.postDelayed(screenOffTimeout, SCREEN_OFF_DELAY_MS)
+                    } else if (screenOffLong) {
+                        screenOffLong = false
+                        update()
+                    }
+                }
             },
+            screenFilter,
+            null,
+            bgHandler,
+            Context.RECEIVER_NOT_EXPORTED,
         )
         context
             .getSystemService(SubscriptionManager::class.java)
@@ -89,10 +123,13 @@ constructor(
     private fun enabled(): Boolean =
         Settings.Secure.getInt(context.contentResolver, SETTING_ENABLED, 1) != 0
 
+    private fun screenOffEnabled(): Boolean =
+        Settings.Secure.getInt(context.contentResolver, SETTING_SCREEN_OFF, 1) != 0
+
     /** Applies or lifts the restriction on every active subscription. Runs on [bgHandler]. */
     private fun update() {
         bgHandler.removeCallbacks(retry)
-        val restrict = tethering && enabled()
+        val restrict = (tethering && enabled()) || (screenOffLong && screenOffEnabled())
         val subs =
             try {
                 context
@@ -136,7 +173,7 @@ constructor(
             if (saved == null) Settings.Global.putString(cr, key, base.toString())
             if (current != target) {
                 tm.setAllowedNetworkTypesForReason(REASON, target)
-                Log.i(TAG, "sub $subId: tethering, 5G off")
+                Log.i(TAG, "sub $subId: 5G off (tethering=$tethering screenOff=$screenOffLong)")
             }
             return tm.getAllowedNetworkTypesForReason(REASON) == target
         } else if (saved != null) {
@@ -158,6 +195,12 @@ constructor(
 
         /** Settings.Secure: 1 (default) keeps the modem on LTE while tethering. */
         const val SETTING_ENABLED = "picked_tether_lte"
+
+        /** Settings.Secure: 1 (default) keeps the modem on LTE while the screen is off. */
+        const val SETTING_SCREEN_OFF = "picked_screen_off_lte"
+
+        /** How long the screen must be off before 5G goes off (short peeks keep 5G). */
+        private const val SCREEN_OFF_DELAY_MS = 30_000L
 
         /** Settings.Global prefix: saved power reason mask per subscription while applied. */
         private const val SAVED_PREFIX = "picked_tether_lte_saved_"
