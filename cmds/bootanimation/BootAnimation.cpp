@@ -80,6 +80,13 @@ static const char APEX_BOOTANIMATION_FILE[] = "/apex/com.android.bootanimation/e
 static const char OEM_SHUTDOWNANIMATION_FILE[] = "/oem/media/shutdownanimation.zip";
 static const char PRODUCT_SHUTDOWNANIMATION_FILE[] = "/product/media/shutdownanimation.zip";
 static const char SYSTEM_SHUTDOWNANIMATION_FILE[] = "/system/media/shutdownanimation.zip";
+// [Miku-Picked UI] Boot animation picker (Settings > Picked features > Style > Boot animation).
+// persist.sys.picked.bootanim = "" (Miku default) | "custom" (imported by the user, stored in
+// /data/misc/picked_bootanim) | <style> (bundled /product/media/picked_bootanim/<style>.zip).
+static const char PICKED_BOOTANIM_PROP[] = "persist.sys.picked.bootanim";
+static const char PICKED_BOOTANIM_CUSTOM[] = "custom";
+static const char PICKED_BOOTANIM_CUSTOM_FILE[] = "/data/misc/picked_bootanim/bootanimation.zip";
+static const char PICKED_BOOTANIM_BUNDLED_DIR[] = "/product/media/picked_bootanim/";
 
 static constexpr const char* PRODUCT_USERSPACE_REBOOT_ANIMATION_FILE = "/product/media/userspace-reboot.zip";
 static constexpr const char* OEM_USERSPACE_REBOOT_ANIMATION_FILE = "/oem/media/userspace-reboot.zip";
@@ -714,8 +721,49 @@ bool BootAnimation::findBootAnimationFileInternal(const std::vector<std::string>
     return false;
 }
 
+// [Miku-Picked UI] Only accept a picked animation that is a readable zip with a desc.txt, so a
+// broken import falls back to the stock animation instead of the plain "android" logo.
+static bool isPlayableBootAnimation(const std::string& path) {
+    if (access(path.c_str(), R_OK) != 0) return false;
+    ZipFileRO* zip = ZipFileRO::open(path.c_str());
+    if (zip == nullptr) return false;
+    ZipEntryRO desc = zip->findEntryByName("desc.txt");
+    if (desc != nullptr) zip->releaseEntry(desc);
+    delete zip;
+    return desc != nullptr;
+}
+
+static std::string pickedBootAnimationFile() {
+    const std::string style = android::base::GetProperty(PICKED_BOOTANIM_PROP, "");
+    if (style.empty()) return "";
+    std::string path;
+    if (style == PICKED_BOOTANIM_CUSTOM) {
+        path = PICKED_BOOTANIM_CUSTOM_FILE;
+    } else {
+        // Style names come from Settings; refuse anything that could leave the directory.
+        if (style.find('/') != std::string::npos || style.find("..") != std::string::npos) {
+            return "";
+        }
+        path = std::string(PICKED_BOOTANIM_BUNDLED_DIR) + style + ".zip";
+    }
+    if (!isPlayableBootAnimation(path)) {
+        SLOGW("Picked boot animation %s is not playable, using the default", path.c_str());
+        return "";
+    }
+    return path;
+}
+
 void BootAnimation::findBootAnimationFile() {
     ATRACE_CALL();
+    // [Miku-Picked UI] The picked animation wins for normal boots (not shutdown/userspace reboot).
+    if (!mShuttingDown &&
+            !android::base::GetBoolProperty("sys.init.userspace_reboot.in_progress", false)) {
+        const std::string picked = pickedBootAnimationFile();
+        if (!picked.empty()) {
+            mZipFileName = picked.c_str();
+            return;
+        }
+    }
     const bool playDarkAnim = android::base::GetIntProperty("ro.boot.theme", 0) == 1;
     const std::string productBootanimationFile = PRODUCT_BOOTANIMATION_DIR +
         android::base::GetProperty("ro.product.bootanim.file", playDarkAnim ?
