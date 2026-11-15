@@ -63,6 +63,7 @@ import static android.net.ConnectivityManager.FIREWALL_CHAIN_DOZABLE;
 import static android.net.ConnectivityManager.FIREWALL_CHAIN_LOW_POWER_STANDBY;
 import static android.net.ConnectivityManager.FIREWALL_CHAIN_METERED_ALLOW;
 import static android.net.ConnectivityManager.FIREWALL_CHAIN_METERED_DENY_ADMIN;
+import static android.net.ConnectivityManager.FIREWALL_CHAIN_OEM_DENY_3;
 import static android.net.ConnectivityManager.FIREWALL_CHAIN_METERED_DENY_USER;
 import static android.net.ConnectivityManager.FIREWALL_CHAIN_POWERSAVE;
 import static android.net.ConnectivityManager.FIREWALL_CHAIN_RESTRICTED;
@@ -738,6 +739,13 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
     @GuardedBy("mUidRulesFirstLock")
     private final SparseArray<Set<Integer>> mMeteredRestrictedUids = new SparseArray<>();
 
+    // Miku-Picked UI: per-app firewall (PickedFirewall). Uids with no mobile data (enforced like
+    // an admin metered restriction) and uids with no network at all (OEM deny chain 3).
+    @GuardedBy("mUidRulesFirstLock")
+    private Set<Integer> mPickedMobileBlockedUids = new ArraySet<>();
+    @GuardedBy("mUidRulesFirstLock")
+    private Set<Integer> mPickedAllBlockedUids = new ArraySet<>();
+
     private final RemoteCallbackList<INetworkPolicyListener>
             mListeners = new RemoteCallbackList<>();
 
@@ -1199,6 +1207,9 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
             // Listen for active data sub Id change, upon which data notifications is shown/hidden.
             mContext.getSystemService(TelephonyManager.class).registerTelephonyCallback(executor,
                     mActiveDataSubIdListener);
+
+            // Miku-Picked UI: per-app firewall
+            new PickedFirewall(mContext, mHandler, this::onPickedFirewallChanged).start();
 
             // tell systemReady() that the service has been initialized
             initCompleteSignal.countDown();
@@ -6743,9 +6754,54 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
 
     @GuardedBy("mUidRulesFirstLock")
     private boolean isRestrictedByAdminUL(int uid) {
+        // Miku-Picked UI: "no mobile data" from the per-app firewall
+        if (mPickedMobileBlockedUids.contains(uid)) return true;
         final Set<Integer> restrictedUids = mMeteredRestrictedUids.get(
                 UserHandle.getUserId(uid));
         return restrictedUids != null && restrictedUids.contains(uid);
+    }
+
+    /** Miku-Picked UI: applies the per-app firewall lists (see PickedFirewall). */
+    private void onPickedFirewallChanged(Set<Integer> mobileUids, Set<Integer> allUids) {
+        synchronized (mUidRulesFirstLock) {
+            final Set<Integer> oldMobile = mPickedMobileBlockedUids;
+            mPickedMobileBlockedUids = mobileUids;
+            if (mNetworkManagerReady) {
+                final Set<Integer> changed = new ArraySet<>(oldMobile);
+                changed.addAll(mobileUids);
+                for (int uid : changed) {
+                    if (oldMobile.contains(uid) != mobileUids.contains(uid)) {
+                        updateRulesForDataUsageRestrictionsUL(uid);
+                    }
+                }
+            }
+
+            // OEM chains go straight to ConnectivityManager: NetworkManagementService only knows
+            // the platform chains and throws for others.
+            final Set<Integer> oldAll = mPickedAllBlockedUids;
+            mPickedAllBlockedUids = allUids;
+            final ConnectivityManager cm = mContext.getSystemService(ConnectivityManager.class);
+            try {
+                for (int uid : oldAll) {
+                    if (!allUids.contains(uid)) {
+                        setPickedOemRule(cm, uid, ConnectivityManager.FIREWALL_RULE_DEFAULT);
+                    }
+                }
+                for (int uid : allUids) {
+                    setPickedOemRule(cm, uid, ConnectivityManager.FIREWALL_RULE_DENY);
+                }
+                cm.setFirewallChainEnabled(FIREWALL_CHAIN_OEM_DENY_3, !allUids.isEmpty());
+            } catch (RuntimeException e) {
+                Slog.e(TAG, "Picked firewall: cannot apply OEM chain rules", e);
+            }
+        }
+    }
+
+    private static void setPickedOemRule(ConnectivityManager cm, int uid, int rule) {
+        cm.setUidFirewallRule(FIREWALL_CHAIN_OEM_DENY_3, uid, rule);
+        if (Process.isApplicationUid(uid)) {
+            cm.setUidFirewallRule(FIREWALL_CHAIN_OEM_DENY_3, Process.toSdkSandboxUid(uid), rule);
+        }
     }
 
     private static boolean getBooleanDefeatingNullable(@Nullable PersistableBundle bundle,
