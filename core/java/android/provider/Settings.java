@@ -6956,6 +6956,20 @@ public final class Settings {
         @Readable
         public static final String LOCK_GESTURE_STATUS = "lock_gesture_status";
 
+        /**
+         * [Miku-Picked UI] Per-app refresh-rate caps for battery, "pkg=rate;pkg=rate" (Hz).
+         * @hide
+         */
+        @Readable
+        public static final String PICKED_APP_REFRESH_RATE = "picked_app_refresh_rate";
+
+        /**
+         * [Miku-Picked UI] A refresh-rate cap (Hz) for apps not individually listed; 0 = off.
+         * @hide
+         */
+        @Readable
+        public static final String PICKED_DEFAULT_REFRESH_RATE = "picked_default_refresh_rate";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
