@@ -69,4 +69,19 @@ object ChargingInfo {
         if (temperatureC > 0f) details += String.format(Locale.US, "%.1f°C", temperatureC)
         return if (details.isEmpty()) "" else details.joinToString(" · ")
     }
+
+    /** Charging power in W from current x voltage, or 0 when unknown (ignores the setting). */
+    fun watts(context: Context): Float {
+        val battery =
+            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return 0f
+        val divider =
+            context.resources.getInteger(R.integer.config_currentInfoDivider).coerceAtLeast(1)
+        val raw = context.getSystemService(BatteryManager::class.java)
+            ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: return 0f
+        if (raw == Int.MIN_VALUE) return 0f
+        val currentMa = abs(raw.toFloat()) / divider
+        val voltageV = battery.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) / 1000f
+        if (currentMa <= 0f || currentMa >= 20_000f || voltageV <= 0f) return 0f
+        return currentMa / 1000f * voltageV
+    }
 }

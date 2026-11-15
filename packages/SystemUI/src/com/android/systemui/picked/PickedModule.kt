@@ -9,6 +9,7 @@ import com.android.systemui.CoreStartable
 import com.android.systemui.edgeaurora.EdgeAuroraController
 import com.android.systemui.penguin.VolumePanelLooks
 import com.android.systemui.picked.refreshrate.PickedRefreshRateController
+import com.android.systemui.picked.charging.ChargingAnimationController
 import com.android.systemui.picked.oneuisland.OneUislandHost
 import com.android.systemui.picked.perfoverlay.PerfOverlayController
 import com.android.systemui.picked.tether.TetherLteController
@@ -87,6 +88,12 @@ interface PickedModule {
     @IntoMap
     @ClassKey(PerfOverlayController::class)
     fun bindPerfOverlayController(controller: PerfOverlayController): CoreStartable
+
+    /** [Miku-Picked UI] Lockscreen charging animation */
+    @Binds
+    @IntoMap
+    @ClassKey(ChargingAnimationController::class)
+    fun bindChargingAnimationController(controller: ChargingAnimationController): CoreStartable
 
     companion object {
         /** [Miku-Picked UI] Wireless PowerShare tile config */

@@ -55,4 +55,10 @@
     <string name="picked_now_bar_flashlight">Flashlight</string>
     <string name="picked_now_bar_flashlight_on">On</string>
     <string name="picked_now_bar_flashlight_off">Turn off the flashlight</string>
+    <!-- [Miku-Picked UI] Charging animation -->
+    <string name="picked_charging_anim_full_in">Full in %1$s</string>
+    <string name="picked_charging_anim_hm">%1$d h %2$d min</string>
+    <string name="picked_charging_anim_m">%1$d min</string>
+    <string name="picked_charging_anim_wired">Charging</string>
+    <string name="picked_charging_anim_wireless">Charging wirelessly</string>
 </resources>
