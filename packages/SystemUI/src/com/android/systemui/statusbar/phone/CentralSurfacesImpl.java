@@ -1715,6 +1715,10 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
 
     @Override
     public void showWirelessChargingAnimation(int batteryLevel) {
+        // Miku-Picked UI: the picked charging animation covers wireless charging too.
+        if (com.android.systemui.picked.charging.ChargingAnimationController.isEnabled(mContext)) {
+            return;
+        }
         showChargingAnimation(batteryLevel, UNKNOWN_BATTERY_LEVEL, 0);
     }
 
