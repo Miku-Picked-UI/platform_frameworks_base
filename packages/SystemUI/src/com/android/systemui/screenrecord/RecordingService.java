@@ -34,6 +34,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import java.util.ArrayList;
+import java.util.List;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
@@ -97,6 +99,8 @@ public class RecordingService extends Service implements ScreenMediaRecorderList
     protected static final String EXTRA_NOTIFICATION_ID = "notification_id";
 
     private final ScreenRecordUxController mController;
+    // [Game Space] remote control of screen recording
+    private final RemoteRecordingBinder mRemoteBinder = new RemoteRecordingBinder();
     protected final KeyguardDismissUtil mKeyguardDismissUtil;
     private final Handler mMainHandler;
     private ScreenRecordingAudioSource mAudioSource = ScreenRecordingAudioSource.NONE;
@@ -283,18 +287,85 @@ public class RecordingService extends Service implements ScreenMediaRecorderList
 
     @Override
     public IBinder onBind(Intent intent) {
-        return null;
+        // [Game Space] binds here to drive screen recording from the game bar.
+        return mRemoteBinder;
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        mController.addCallback(mRemoteBinder);
     }
 
     @Nullable
     @VisibleForTesting
     protected ScreenMediaRecorder getRecorder() {
         return mRecorder;
+    }
+
+    /**
+     * [Game Space] A binder the Game Space app uses to start/stop and observe recording.
+     * startRecording() runs the normal screen-record UX (consent dialog the first time).
+     */
+    private final class RemoteRecordingBinder extends IRemoteRecording.Stub
+            implements ScreenRecordUxController.StateChangeCallback {
+
+        private final List<IRecordingCallback> mCallbacks = new ArrayList<>();
+
+        @Override
+        public void startRecording() throws RemoteException {
+            mMainHandler.post(() -> mController.onScreenRecordQsTileClick());
+        }
+
+        @Override
+        public void stopRecording() throws RemoteException {
+            mMainHandler.post(() -> mController.stopRecording(
+                    android.media.projection.StopReason.STOP_UNKNOWN));
+        }
+
+        @Override
+        public boolean isRecording() throws RemoteException {
+            return mController.isRecording();
+        }
+
+        @Override
+        public boolean isStarting() throws RemoteException {
+            return mController.isStarting();
+        }
+
+        @Override
+        public void addRecordingCallback(IRecordingCallback callback) throws RemoteException {
+            if (callback != null && !mCallbacks.contains(callback)) {
+                mCallbacks.add(callback);
+            }
+        }
+
+        @Override
+        public void removeRecordingCallback(IRecordingCallback callback) throws RemoteException {
+            mCallbacks.remove(callback);
+        }
+
+        @Override
+        public void onRecordingStart() {
+            for (IRecordingCallback cb : new ArrayList<>(mCallbacks)) {
+                try {
+                    cb.onRecordingStart();
+                } catch (RemoteException e) {
+                    mCallbacks.remove(cb);
+                }
+            }
+        }
+
+        @Override
+        public void onRecordingEnd() {
+            for (IRecordingCallback cb : new ArrayList<>(mCallbacks)) {
+                try {
+                    cb.onRecordingEnd();
+                } catch (RemoteException e) {
+                    mCallbacks.remove(cb);
+                }
+            }
+        }
     }
 
     private void updateState(boolean state) {
