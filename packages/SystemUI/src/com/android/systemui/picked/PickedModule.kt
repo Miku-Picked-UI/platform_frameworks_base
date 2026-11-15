@@ -20,6 +20,7 @@ import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.AutoBrightnessTile
 import com.android.systemui.qs.tiles.PowerShareTile
 import com.android.systemui.qs.tiles.SleepModeTile
+import com.android.systemui.qs.tiles.ClipboardHistoryTile
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
 import com.android.systemui.res.R
@@ -43,6 +44,12 @@ interface PickedModule {
     @IntoMap
     @StringKey(AutoBrightnessTile.TILE_SPEC)
     fun bindAutoBrightnessTile(autoBrightnessTile: AutoBrightnessTile): QSTileImpl<*>
+
+    /** [Miku-Picked UI] Clipboard history tile */
+    @Binds
+    @IntoMap
+    @StringKey(ClipboardHistoryTile.TILE_SPEC)
+    fun bindClipboardHistoryTile(tile: ClipboardHistoryTile): QSTileImpl<*>
 
     /** [Evolution X] Inject SleepModeTile into tileMap in QSModule */
     @Binds
@@ -126,6 +133,22 @@ interface PickedModule {
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.DISPLAY,
+            )
+
+        /** [Miku-Picked UI] Clipboard history tile config */
+        @Provides
+        @IntoMap
+        @StringKey(ClipboardHistoryTile.TILE_SPEC)
+        fun provideClipboardHistoryTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(ClipboardHistoryTile.TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = R.drawable.ic_qs_clipboard_history,
+                        labelRes = R.string.picked_clipboard_title,
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.UTILITIES,
             )
 
         /** [Evolution X] Sleep Mode tile config */
