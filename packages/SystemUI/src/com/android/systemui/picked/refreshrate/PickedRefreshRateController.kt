@@ -4,9 +4,13 @@
  */
 package com.android.systemui.picked.refreshrate
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.database.ContentObserver
 import android.os.Handler
+import android.os.PowerManager
 import android.os.UserHandle
 import android.provider.Settings
 import android.util.Log
@@ -37,8 +41,13 @@ constructor(
 
     private val resolver = context.contentResolver
 
+    private val power = context.getSystemService(PowerManager::class.java)
     private var perApp: Map<String, Int> = emptyMap()
     private var globalCap: Int = 0
+    private var powerSave = false
+
+    // When battery saver is on, hold the whole UI at this rate regardless of the per-app config.
+    private val powerSaveRate = 48
 
     // Whether we are currently overriding the user's peak, and the value to put back.
     private var overriding = false
@@ -49,6 +58,17 @@ constructor(
             override fun onChange(selfChange: Boolean) {
                 loadConfig()
                 apply(topPackage())
+            }
+        }
+
+    private val powerSaveReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val ps = power?.isPowerSaveMode == true
+                if (ps != powerSave) {
+                    powerSave = ps
+                    apply(topPackage())
+                }
             }
         }
 
@@ -65,6 +85,9 @@ constructor(
                 Settings.System.getUriFor(key), false, observer, UserHandle.USER_ALL)
         }
         loadConfig()
+        powerSave = power?.isPowerSaveMode == true
+        context.registerReceiver(powerSaveReceiver,
+            IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED))
         TaskStackChangeListeners.getInstance().registerTaskStackListener(taskListener)
         apply(topPackage())
     }
@@ -94,11 +117,12 @@ constructor(
 
     /** The cap for [pkg]: its own if listed, else the global cap (0 = none). */
     private fun capFor(pkg: String?): Int {
-        if (pkg == null) return 0
-        perApp[pkg]?.let {
-            return it
+        val configured = if (pkg == null) 0 else perApp[pkg] ?: globalCap
+        if (powerSave) {
+            // Battery saver: cap at powerSaveRate, or lower if the app already asked for less.
+            return if (configured in 1 until powerSaveRate) configured else powerSaveRate
         }
-        return globalCap
+        return configured
     }
 
     private fun apply(pkg: String?) {
