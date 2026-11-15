@@ -6932,6 +6932,30 @@ public final class Settings {
         @Readable
         public static final String POCKET_JUDGE = "pocket_judge";
 
+        /**
+         * [Game Space] The user's games, "pkg=mode" entries separated by ";".
+         * The single game list: GameManagerService reads it (power profile) and the
+         * Game Space app reads it (overlay bar).
+         * @hide
+         */
+        @Readable
+        public static final String GAMESPACE_GAME_LIST = "gamespace_game_list";
+
+        /**
+         * [Game Space] Whether the 3-finger swipe screenshot is on; Game Space turns it
+         * off while a game is in the foreground.
+         * @hide
+         */
+        @Readable
+        public static final String SWIPE_TO_SCREENSHOT = "swipe_to_screenshot";
+
+        /**
+         * [Game Space] Whether the gesture-lock (block the nav gestures) is active.
+         * @hide
+         */
+        @Readable
+        public static final String LOCK_GESTURE_STATUS = "lock_gesture_status";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
@@ -14187,6 +14211,14 @@ public final class Settings {
          * @hide
          */
         public static final String SPOOF_TRICKYSTORE_PATCH = "spoof_trickystore_patch";
+
+        /**
+         * [Game Space] Per-game mode interventions written by Game Space, in the form
+         * "pkg;;mode=2,downscaleFactor=0.7". Read by GameManagerService's device_config.
+         * @hide
+         */
+        @Readable
+        public static final String GAME_OVERLAY = "game_overlay";
 
         // ---- end Miku-Picked UI (Secure) ----
         

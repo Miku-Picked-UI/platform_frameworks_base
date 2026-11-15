@@ -1043,45 +1043,74 @@ public final class GameManagerService extends IGameManagerService.Stub {
         return config.getAvailableGameModes();
     }
 
-    // Miku-Picked UI: the user's own game list (Picked features -> Games). Comma-separated
-    // package names: apps added as games, and games (by manifest category) taken off the list.
-    // With no list saved yet, config_pickedGamePackages is the added set.
-    private static final String PICKED_GAME_PACKAGES = "picked_game_packages";
-    private static final String PICKED_GAME_PACKAGES_EXCLUDED = "picked_game_packages_excluded";
+    // Miku-Picked UI: the single game list, shared with the Game Space app
+    // (Settings.System gamespace_game_list, "pkg=mode;pkg=mode"). A game is any app on
+    // that list or any app that declares android:appCategory="game".
+    private static final String GAMESPACE_PACKAGE = "io.chaldeaprjkt.gamespace";
+    private static final String ACTION_GAMESPACE_GAME_START =
+            "io.chaldeaprjkt.gamespace.action.GAME_START";
+    private static final String ACTION_GAMESPACE_GAME_STOP =
+            "io.chaldeaprjkt.gamespace.action.GAME_STOP";
+    private static final String GAMESPACE_EXTRA_PACKAGE = "package_name";
 
-    private boolean isPickedGame(String packageName, int category, @UserIdInt int userId) {
-        final ContentResolver cr = mContext.getContentResolver();
-        if (containsPackage(Settings.Secure.getStringForUser(cr,
-                PICKED_GAME_PACKAGES_EXCLUDED, userId), packageName)) {
+    // The game currently in the foreground, so GAME_START/GAME_STOP fire once per change.
+    @GuardedBy("mUidObserverLock")
+    private String mForegroundGamePackage = null;
+
+    private boolean isInGameList(String packageName, @UserIdInt int userId) {
+        final String list = Settings.System.getStringForUser(
+                mContext.getContentResolver(), Settings.System.GAMESPACE_GAME_LIST, userId);
+        if (TextUtils.isEmpty(list)) {
             return false;
         }
-        final String added = Settings.Secure.getStringForUser(cr, PICKED_GAME_PACKAGES, userId);
-        if (added == null) {
-            if (ArrayUtils.contains(mContext.getResources().getStringArray(
-                    com.android.internal.R.array.config_pickedGamePackages), packageName)) {
+        for (String entry : list.split(";")) {
+            final String pkg = entry.split("=")[0].trim();
+            if (pkg.equals(packageName)) {
                 return true;
             }
-        } else if (containsPackage(added, packageName)) {
-            return true;
-        }
-        return category == ApplicationInfo.CATEGORY_GAME;
-    }
-
-    private static boolean containsPackage(String list, String packageName) {
-        if (TextUtils.isEmpty(list)) return false;
-        for (String p : list.split(",")) {
-            if (p.trim().equals(packageName)) return true;
         }
         return false;
     }
 
     private boolean isPackageGame(String packageName, @UserIdInt int userId) {
+        if (isInGameList(packageName, userId)) {
+            return true;
+        }
         try {
             final ApplicationInfo applicationInfo = mPackageManager
                     .getApplicationInfoAsUser(packageName, PackageManager.MATCH_ALL, userId);
-            return isPickedGame(packageName, applicationInfo.category, userId);
+            return applicationInfo.category == ApplicationInfo.CATEGORY_GAME;
         } catch (PackageManager.NameNotFoundException e) {
             return false;
+        }
+    }
+
+    private String firstGamePackage(String[] packages, @UserIdInt int userId) {
+        if (packages == null) {
+            return null;
+        }
+        for (String p : packages) {
+            if (isPackageGame(p, userId)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    // Tell the Game Space app a game entered or left the foreground, so it can show or hide
+    // its overlay bar. system_server holds MANAGE_GAME_MODE, which the app's receiver requires.
+    private void notifyGameSpace(boolean start, String packageName) {
+        final Intent intent = new Intent(start ? ACTION_GAMESPACE_GAME_START
+                : ACTION_GAMESPACE_GAME_STOP);
+        intent.setPackage(GAMESPACE_PACKAGE);
+        if (start && packageName != null) {
+            intent.putExtra(GAMESPACE_EXTRA_PACKAGE, packageName);
+        }
+        final long token = Binder.clearCallingIdentity();
+        try {
+            mContext.sendBroadcastAsUser(intent, UserHandle.CURRENT);
+        } finally {
+            Binder.restoreCallingIdentity(token);
         }
     }
 
@@ -2045,7 +2074,7 @@ public final class GameManagerService extends IGameManagerService.Stub {
         final List<PackageInfo> packages =
                 mPackageManager.getInstalledPackagesAsUser(0, userId);
         return packages.stream().filter(e -> e.applicationInfo != null
-                        && isPickedGame(e.packageName, e.applicationInfo.category, userId))
+                        && isPackageGame(e.packageName, userId))
                 .map(e -> e.packageName)
                 .toArray(String[]::new);
     }
@@ -2377,6 +2406,12 @@ public final class GameManagerService extends IGameManagerService.Stub {
                 setGameDefaultFrameRateOverride(uid,
                         getGameDefaultFrameRate(!isGameDefaultFrameRateDisabled));
                 mGameForegroundUids.add(uid);
+                // Miku-Picked UI: Game Space overlay.
+                final String gamePkg = firstGamePackage(packages, userId);
+                if (gamePkg != null && !gamePkg.equals(mForegroundGamePackage)) {
+                    mForegroundGamePackage = gamePkg;
+                    notifyGameSpace(true, gamePkg);
+                }
             }
         }
 
@@ -2387,6 +2422,11 @@ public final class GameManagerService extends IGameManagerService.Stub {
                     if (mGameForegroundUids.isEmpty() && mNonGameForegroundUids.isEmpty()) {
                         Slog.v(TAG, "Game power mode OFF (no games in foreground)");
                         mPowerManagerInternal.setPowerMode(Mode.GAME, false);
+                    }
+                    // Miku-Picked UI: Game Space overlay.
+                    if (mGameForegroundUids.isEmpty() && mForegroundGamePackage != null) {
+                        mForegroundGamePackage = null;
+                        notifyGameSpace(false, null);
                     }
                 } else if (mNonGameForegroundUids.contains(uid)) {
                     mNonGameForegroundUids.remove(uid);

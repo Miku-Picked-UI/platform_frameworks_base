@@ -15,8 +15,6 @@
     <java-symbol type="string" name="sleep_mode_enabled_toast" />
     <java-symbol type="string" name="sleep_mode_disabled_toast" />
 
-    <!-- Games without android:appCategory="game" -->
-    <java-symbol type="array" name="config_pickedGamePackages" />
 
     <!-- [Evolution X] Pocket mode -->
     <java-symbol type="layout" name="pocket_lock_view" />
