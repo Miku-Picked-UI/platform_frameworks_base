@@ -29,6 +29,7 @@ import android.view.View
 import android.view.animation.PathInterpolator
 import com.android.internal.graphics.ColorUtils
 import com.android.app.animation.Interpolators
+import com.android.systemui.picked.unlock.PickedUnlockEffect
 import com.android.systemui.surfaceeffects.ripple.RippleShader
 
 private const val RIPPLE_SPARKLE_STRENGTH: Float = 0.3f
@@ -59,6 +60,10 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
     private val rippleShader = RippleShader()
     private val ripplePaint = Paint()
     private var unlockedRippleAnimator: Animator? = null
+    // Miku-Picked UI: alternative unlock animations (Settings.System picked_unlock_animation)
+    private val pickedEffect = PickedUnlockEffect(context!!)
+    private var drawPicked = false
+    private var pickedProgress = 0f
     private var fadeDwellAnimator: Animator? = null
     private var retractDwellAnimator: Animator? = null
     private var dwellPulseOutAnimator: Animator? = null
@@ -263,12 +268,23 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
     fun startUnlockedRipple(onAnimationEnd: Runnable?) {
         unlockedRippleAnimator?.cancel()
 
+        // Miku-Picked UI: a picked style replaces the ripple, or no animation at all.
+        drawPicked = pickedEffect.begin(context, origin.x.toFloat(), origin.y.toFloat(),
+            width, height)
+        if (drawPicked && pickedEffect.style == PickedUnlockEffect.STYLE_NONE) {
+            drawPicked = false
+            onAnimationEnd?.run()
+            return
+        }
+        pickedEffect.color = lockScreenColorVal
+
         val rippleAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = AuthRippleController.RIPPLE_ANIMATION_DURATION
             addUpdateListener { animator ->
                 val now = animator.currentPlayTime
                 rippleShader.rawProgress = animator.animatedValue as Float
                 rippleShader.time = now.toFloat()
+                pickedProgress = animator.animatedValue as Float
 
                 invalidate()
             }
@@ -341,7 +357,9 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
                     maskRadius, dwellPaint)
         }
 
-        if (drawRipple) {
+        if (drawRipple && drawPicked) {
+            pickedEffect.draw(canvas, pickedProgress)
+        } else if (drawRipple) {
             canvas?.drawCircle(origin.x.toFloat(), origin.y.toFloat(),
                     rippleShader.rippleSize.currentWidth, ripplePaint)
         }
