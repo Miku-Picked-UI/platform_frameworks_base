@@ -6922,6 +6922,16 @@ public final class Settings {
         @Readable
         public static final String VOLUME_BUTTON_MUSIC_CONTROL = "volume_button_music_control";
 
+        /**
+         * [Evolution X] Pocket mode: let the pocket service watch the proximity sensor while
+         * the screen is off, ignore key wakes in a pocket and show the pocket lock.
+         *   0 = disabled (default)
+         *   1 = enabled
+         * @hide
+         */
+        @Readable
+        public static final String POCKET_JUDGE = "pocket_judge";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**

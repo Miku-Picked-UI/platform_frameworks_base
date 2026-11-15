@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: Evolution X, 2026 Miku-Picked UI
+     SPDX-License-Identifier: Apache-2.0
+-->
+<!-- [Evolution X] Pocket mode: the pocket judge (PocketService) and the pocket lock
+     (PhoneWindowManager / PocketLock). -->
+<resources>
+    <!-- Whether the device can judge it's in a pocket (needs a proximity sensor). -->
+    <bool name="config_pocketModeSupported">true</bool>
+    <!-- Also use the light sensor. Miku-Picked UI: off by default, proximity alone is enough
+         and the light sensor would run at 400 ms all the time the screen is off. -->
+    <bool name="config_pocketUseLightSensor">false</bool>
+    <!-- Custom OEM pocket sensor (name), the value it reports in a pocket, and a custom
+         proximity sensor (name). Empty uses the default proximity sensor. -->
+    <string name="config_pocketJudgeVendorSensorName" translatable="false"></string>
+    <item name="config_pocketJudgeVendorSensorValue" format="float" type="dimen">1.0</item>
+    <string name="config_pocketJudgeVendorProximitySensorName" translatable="false"></string>
+
+    <dimen name="pocket_mode_illustration_width">175dp</dimen>
+    <dimen name="pocket_mode_illustration_height">350dp</dimen>
+    <dimen name="pocket_mode_illustration_margin_top">56dp</dimen>
+    <dimen name="pocket_mode_title_size">24sp</dimen>
+    <dimen name="pocket_mode_title_margin_horizontal">56dp</dimen>
+    <dimen name="pocket_mode_instructions_container_margin_horizontal">24dp</dimen>
+    <dimen name="pocket_mode_instructions_container_margin_top">56dp</dimen>
+    <dimen name="pocket_mode_instructions_title_size">16sp</dimen>
+    <dimen name="pocket_mode_instructions_steps_margin_top">8dp</dimen>
+    <dimen name="pocket_mode_instructions_step_size">14sp</dimen>
+    <dimen name="pocket_mode_instructions_step_margin_top">8dp</dimen>
+
+    <style name="PocketModeTitle">
+        <item name="android:textSize">@dimen/pocket_mode_title_size</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:alpha">0.85</item>
+    </style>
+    <style name="PocketModeInstructionsTitle">
+        <item name="android:textSize">@dimen/pocket_mode_instructions_title_size</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:alpha">0.5</item>
+    </style>
+    <style name="PocketModeInstructionStep">
+        <item name="android:textSize">@dimen/pocket_mode_instructions_step_size</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:alpha">0.5</item>
+    </style>
+
+    <string name="pocket_mode_title">Pocket mode is active</string>
+    <string name="pocket_mode_illustration_description">Illustration of phone in pocket</string>
+    <string name="pocket_mode_instructions_header">To use your phone:</string>
+    <string name="pocket_mode_instruction_step1">1. Make sure the blue area (proximity sensor) shown above is uncovered and clean.</string>
+    <string name="pocket_mode_instruction_step2">2. Press and hold the power button to exit pocket mode.</string>
+</resources>
