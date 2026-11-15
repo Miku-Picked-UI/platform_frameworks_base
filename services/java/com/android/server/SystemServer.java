@@ -2852,6 +2852,15 @@ public final class SystemServer implements Dumpable {
             mSystemServiceManager.startService(CrossProfileAppsService.class);
             t.traceEnd();
 
+            // [Evolution X] Pocket mode
+            if (context.getResources().getBoolean(
+                    com.android.internal.R.bool.config_pocketModeSupported)) {
+                t.traceBegin("StartPocketService");
+                mSystemServiceManager.startService(
+                        com.android.server.pocket.PocketService.class);
+                t.traceEnd();
+            }
+
             t.traceBegin("StartPeopleService");
             mSystemServiceManager.startService(PeopleService.class);
             t.traceEnd();

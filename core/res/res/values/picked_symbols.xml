@@ -17,4 +17,12 @@
 
     <!-- Games without android:appCategory="game" -->
     <java-symbol type="array" name="config_pickedGamePackages" />
+
+    <!-- [Evolution X] Pocket mode -->
+    <java-symbol type="layout" name="pocket_lock_view" />
+    <java-symbol type="bool" name="config_pocketModeSupported" />
+    <java-symbol type="bool" name="config_pocketUseLightSensor" />
+    <java-symbol type="string" name="config_pocketJudgeVendorSensorName" />
+    <java-symbol type="dimen" name="config_pocketJudgeVendorSensorValue" />
+    <java-symbol type="string" name="config_pocketJudgeVendorProximitySensorName" />
 </resources>
