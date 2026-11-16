@@ -37,7 +37,9 @@ import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeMediaSect
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeNotificationStackScrollLayoutSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardClockStyleSection
 import com.android.systemui.picked.depthwallpaper.DepthWallpaperSection
+import com.android.systemui.picked.mediaart.KeyguardMediaArtSection
 import com.android.systemui.picked.nowbar.NowBarSection
+import com.android.systemui.picked.visualizer.KeyguardVisualizerSection
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.util.kotlin.getOrNull
 import java.util.Optional
@@ -72,12 +74,16 @@ constructor(
     keyguardClockStyleSection: KeyguardClockStyleSection,
     nowBarSection: NowBarSection,
     depthWallpaperSection: DepthWallpaperSection,
+    keyguardMediaArtSection: KeyguardMediaArtSection,
+    keyguardVisualizerSection: KeyguardVisualizerSection,
 ) : KeyguardBlueprint {
     override val id: String = ID
 
     override val sections by lazy {
         SceneContainerFlag.assertInLegacyMode()
         listOfNotNull(
+            keyguardMediaArtSection, // Miku-Picked UI: lockscreen media art background (at the back)
+            keyguardVisualizerSection, // Miku-Picked UI: lockscreen music visualizer (behind content)
             accessibilityActionsSection,
             defaultIndicationAreaSection,
             defaultShortcutsSection,
