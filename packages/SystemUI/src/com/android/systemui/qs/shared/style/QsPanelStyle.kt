@@ -29,7 +29,13 @@ enum class QsPanelStyle(val value: Int) {
 
     ColorOs(5),
 
-    Stock(6);
+    Stock(6),
+
+    /**
+     * [Miku-Picked UI] ColorCC (by Guest): the whole expanded panel is ColorCC's own view,
+     * hosted by com.android.systemui.picked.colorcc.ColorCcHost.
+     */
+    ColorCc(7);
 
     /** Uses AOSP's own tiles and Quick Settings content rather than a Penguin layout. */
     val stockLayout: Boolean

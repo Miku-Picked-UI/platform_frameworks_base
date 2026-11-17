@@ -201,6 +201,10 @@ constructor(
     private val audioStreamSliderViewModelFactory:
         com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel
             .AudioStreamSliderViewModel.Factory,
+    // [Miku-Picked UI] ColorCC panel style (qs_panel_style 7).
+    private val colorCcQsHost: com.android.systemui.qs.QSHost,
+    private val colorCcAccessPoints:
+        com.android.systemui.statusbar.connectivity.AccessPointController,
 ) : LifecycleFragment(), QS, Dumpable {
 
     init {
@@ -255,6 +259,9 @@ constructor(
     private val containerView: FrameLayoutTouchPassthrough?
         get() = view as? FrameLayoutTouchPassthrough
 
+    /** [Miku-Picked UI] ColorCC, over the ComposeView while that style is chosen. */
+    private var colorCcHost: com.android.systemui.picked.colorcc.ColorCcHost? = null
+
     override fun onStart() {
         super.onStart()
         registerDumpable()
@@ -292,11 +299,14 @@ constructor(
         val canScrollQs =
             object : CanScrollQs {
                 override fun forward(): Boolean {
+                    // [Miku-Picked UI] ColorCC scrolls its own cards.
+                    colorCcHost?.let { if (it.active) return it.canScroll(down = true) }
                     return (scrollState.canScrollForward && viewModel.isQsFullyExpanded) ||
                         isCustomizing
                 }
 
                 override fun backward(): Boolean {
+                    colorCcHost?.let { if (it.active) return it.canScroll(down = false) }
                     return (scrollState.canScrollBackward && viewModel.isQsFullyExpanded) ||
                         isCustomizing
                 }
@@ -321,7 +331,45 @@ constructor(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT,
         )
+        addColorCc(frame)
         return frame
+    }
+
+    /**
+     * [Miku-Picked UI] ColorCC (qs_panel_style 7) draws the expanded panel as views of its own,
+     * over the ComposeView; Quick Quick Settings stays the compose one.
+     */
+    private fun addColorCc(frame: FrameLayout) {
+        val colorCcContainer =
+            FrameLayout(frame.context).apply {
+                clipChildren = false
+                clipToPadding = false
+            }
+        frame.addView(
+            colorCcContainer,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        )
+        val host =
+            com.android.systemui.picked.colorcc.ColorCcHost(
+                colorCcContainer,
+                viewModel,
+                colorCcQsHost,
+                colorCcAccessPoints,
+            )
+        colorCcHost = host
+        colorCcContainer.repeatWhenAttached {
+            repeatOnLifecycle(Lifecycle.State.CREATED) {
+                launch {
+                    qsPanelStyleRepository.style.collect {
+                        host.setWanted(
+                            it == com.android.systemui.qs.shared.style.QsPanelStyle.ColorCc
+                        )
+                    }
+                }
+                launch { snapshotFlow { host.expansion() }.collect { host.onExpansionChanged() } }
+            }
+        }
     }
 
     @Composable
@@ -1028,7 +1076,9 @@ constructor(
                             // [PenguinOS] The Control Centre (PenguinOS' "Penguin" style) draws
                             // the whole expanded panel; the stock layout otherwise.
                             val panelStyle by qsPanelStyleRepository.style.collectAsState()
-                            if (panelStyle ==
+                            if (colorCcHost?.active == true) {
+                                // [Miku-Picked UI] ColorCC's own view draws the expanded panel.
+                            } else if (panelStyle ==
                                     com.android.systemui.qs.shared.style.QsPanelStyle.Penguin) {
                                 val largeTiles by iconTilesViewModel.largeTiles.collectAsState()
                                 CompositionLocalProvider(
@@ -1056,12 +1106,15 @@ constructor(
                         }
                     }
                 }
-                QuickSettingsTheme {
-                    Element(
-                        Elements.FooterActions,
-                        Modifier.sysuiResTag(ResIdTags.qsFooterActions),
-                    ) {
-                        FooterActions(viewModel = viewModel.footerActionsViewModel)
+                // [Miku-Picked UI] ColorCC has its own edit, power and settings buttons.
+                if (colorCcHost?.active != true) {
+                    QuickSettingsTheme {
+                        Element(
+                            Elements.FooterActions,
+                            Modifier.sysuiResTag(ResIdTags.qsFooterActions),
+                        ) {
+                            FooterActions(viewModel = viewModel.footerActionsViewModel)
+                        }
                     }
                 }
             }

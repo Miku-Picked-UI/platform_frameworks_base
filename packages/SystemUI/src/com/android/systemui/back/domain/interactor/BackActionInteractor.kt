@@ -120,6 +120,10 @@ constructor(
             qsController.closeQsCustomizer()
             return true
         }
+        // [Miku-Picked UI] ColorCC closes its open menu, player or editor first.
+        if (qsController.expanded && dev.colorcc.Hook.onBack()) {
+            return true
+        }
         if (qsController.expanded) {
             shadeBackActionInteractor.animateCollapseQs(false)
             return true
