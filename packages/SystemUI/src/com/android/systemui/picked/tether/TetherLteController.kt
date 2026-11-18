@@ -186,6 +186,16 @@ constructor(
             }
             Settings.Global.putString(cr, key, null)
             Log.i(TAG, "sub $subId: 5G allowed again")
+        } else {
+            // Telephony persists the power mask in its database at once, but Settings.Global is
+            // written lazily: a restart right after 5G went off can lose the saved mask and leave
+            // 5G off for good. Nothing else in the ROM drops NR for this reason, so put it back.
+            val current = tm.getAllowedNetworkTypesForReason(REASON)
+            if (current and NR == 0L) {
+                tm.setAllowedNetworkTypesForReason(REASON, current or NR)
+                Log.i(TAG, "sub $subId: 5G allowed again (saved mask was lost)")
+                return tm.getAllowedNetworkTypesForReason(REASON) and NR != 0L
+            }
         }
         return true
     }
