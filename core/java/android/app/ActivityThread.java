@@ -8019,17 +8019,6 @@ public final class ActivityThread extends ClientTransactionHandler
         final ContextImpl appContext = ContextImpl.createAppContext(this, data.info);
         mConfigurationController.updateLocaleListFromAppContext(appContext);
 
-        // Miku-Picked UI: Play Integrity spoof for DroidGuard and Play Store (Evolution X).
-        if (android.security.pif.PlayIntegritySpoofService.isSpoofCandidate(data.processName)) {
-            final android.security.pif.PlayIntegritySpoofService pif =
-                    android.security.pif.PlayIntegritySpoofService.getInstance();
-            if (pif.shouldSpoof(data.processName)) {
-                pif.spoofBuildFields(data.processName);
-                if (pif.isSpoofProviderEnabled()) pif.spoofProvider(data.processName);
-                if (pif.isSpoofSignatureEnabled()) pif.spoofSignature(data.processName);
-            }
-        }
-
         // Initialize the default http proxy in this process.
         Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "Setup proxies");
         try {

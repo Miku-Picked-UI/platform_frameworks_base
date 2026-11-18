@@ -1065,13 +1065,4 @@ interface IActivityManager {
      */
     oneway void reportOptimizationInfo(in IBinder app, in String compilerFilter,
             in String compilationReason);
-
-    /** Miku-Picked UI: Play Integrity and TrickyStore spoof configs. @hide */
-    String getSpoofPifConfig();
-    /** @hide */
-    String getSpoofTrickyStoreTarget();
-    /** Only returned to system uids and TrickyStore target packages. @hide */
-    String getSpoofTrickyStoreKeyBox();
-    /** @hide */
-    String getSpoofTrickyStorePatch();
 }

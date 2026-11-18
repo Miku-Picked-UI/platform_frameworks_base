@@ -2392,12 +2392,6 @@ public class SettingsProvider extends ContentProvider {
         if (UserHandle.getAppId(Binder.getCallingUid()) < Process.FIRST_APPLICATION_UID) {
             return;
         }
-        // Miku-Picked UI: the imported keybox holds private keys. Only system uids read it
-        // (Settings, system_server); the spoofing processes get it from system_server.
-        if (settingsType == SETTINGS_TYPE_SECURE
-                && Settings.Secure.SPOOF_TRICKYSTORE_KEYBOX.equals(settingName)) {
-            throw new SecurityException("Settings key: <" + settingName + "> is not readable");
-        }
         ApplicationInfo ai = getCallingApplicationInfoOrThrow();
         if (ai.isSystemApp() || ai.isSignedWithPlatformKey()) {
             return;
