@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.android.compose.animation.scene.ContentScope
 import com.android.systemui.qs.panels.ui.viewmodel.TileGridViewModel
+import com.android.systemui.qs.pipeline.shared.TileSpec
 
 /**
  * Displays a grid of tiles with an optional reveal animation.
@@ -32,15 +33,22 @@ fun ContentScope.TileGrid(
     modifier: Modifier = Modifier,
     listening: () -> Boolean = { true },
     enableRevealEffect: Boolean = false,
+    // [PenguinOS] Only these tiles, on this many columns (Android 17's TileGrid).
+    includeSpecs: List<TileSpec>? = null,
+    columnsOverride: Int? = null,
 ) {
     val gridLayout = viewModel.gridLayout
-    val tiles = viewModel.tileViewModels
+    val tiles =
+        viewModel.tileViewModels.let { all ->
+            if (includeSpecs == null) all else all.filter { it.spec in includeSpecs }
+        }
     with(gridLayout) {
         TileGrid(
             tiles = tiles,
             modifier = modifier,
             listening = listening,
             enableRevealEffect = enableRevealEffect,
+            columnsOverride = columnsOverride,
         )
     }
 }

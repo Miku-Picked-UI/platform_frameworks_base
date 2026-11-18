@@ -519,6 +519,8 @@ android_library {
     static_libs: [
         // [OneUisland] Dynamic island, see vendor/miku/oneuisland
         "OneUisland-island",
+        // [Miku-Picked UI] ColorCC panel style, see vendor/miku/colorcc
+        "ColorCC-panel",
         // [Lunaris AOSP] Lockscreen app widgets
         "LunarisLockscreenWidgets",
         "//frameworks/libs/systemui:compilelib",

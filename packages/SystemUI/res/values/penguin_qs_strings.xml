@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The PenguinOS Project
+     SPDX-License-Identifier: Apache-2.0
+
+     Miku-Picked UI: strings of PenguinOS' Quick Settings styles (Control Centre and the
+     styles it shares code with), ported with permission.
+-->
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="cos_edit_hint">Hold and drag to rearrange</string>
+    <string name="cos_edit_more">More tiles</string>
+    <string name="cos_edit_title">Edit</string>
+    <string name="cos_tile_tip_off"><xliff:g id="tile" example="Aeroplane mode">%1$s</xliff:g> off</string>
+    <string name="cos_tile_tip_on"><xliff:g id="tile" example="Aeroplane mode">%1$s</xliff:g> on</string>
+    <string name="harmony_cast_hint">Tap to cast your screen to a nearby device</string>
+    <string name="harmony_connected">Connected</string>
+    <string name="harmony_control_centre">Control centre</string>
+    <string name="harmony_devices">Devices</string>
+    <string name="harmony_edit_more">More toggles</string>
+    <string name="harmony_edit_subtitle">Long press and drag to rearrange</string>
+    <string name="harmony_edit_title">Edit control centre</string>
+    <string name="harmony_not_playing">Not playing</string>
+    <string name="oneui_edit">Edit</string>
+    <string name="oneui_play_music">Play music</string>
+    <string name="oneui_toggles_empty">Drag buttons here to add them to this area.</string>
+    <string name="penguin_cc_reset">Reset</string>
+    <string name="penguin_edit_more">Add tiles</string>
+    <string name="penguin_edit_subtitle">Tap to resize, long press to move</string>
+    <string name="penguin_edit_title">Edit tiles</string>
+    <string name="penguin_media_not_playing">Not Playing</string>
+    <string name="quick_settings_connectivity_folder_title">Connectivity</string>
+</resources>

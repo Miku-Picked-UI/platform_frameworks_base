@@ -68,7 +68,15 @@ constructor(
         modifier: Modifier,
         listening: () -> Boolean,
         enableRevealEffect: Boolean,
+        columnsOverride: Int?,
     ) {
+        if (columnsOverride != null) {
+            // A fixed number of columns (one Control Centre cell): no pages.
+            with(delegateGridLayout) {
+                TileGrid(tiles, modifier, listening, enableRevealEffect, columnsOverride)
+            }
+            return
+        }
         val viewModel =
             rememberViewModel(traceName = "PaginatedGridLayout-TileGrid") {
                 viewModelFactory.create()
@@ -145,6 +153,7 @@ constructor(
                         modifier = Modifier,
                         listening = listening,
                         enableRevealEffect = false,
+                        columnsOverride = null,
                     )
                 }
             }

@@ -67,6 +67,12 @@ object PenguinAssets {
 
     private val glyphCache = HashMap<String, Drawable.ConstantState?>()
 
+    /** The glyph for [spec] when the assets package was already looked up, or null. */
+    fun cachedGlyph(spec: String): Drawable? {
+        val assets = assetsContext ?: return null
+        return glyph(assets, spec)
+    }
+
     /** The Liquid Glass glyph for a tile spec, or null. */
     fun glyph(context: Context, spec: String): Drawable? {
         val name = glyphBySpec[spec] ?: return null

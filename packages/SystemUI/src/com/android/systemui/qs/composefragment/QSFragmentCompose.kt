@@ -52,6 +52,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -144,6 +145,8 @@ import com.android.systemui.qs.composefragment.ui.toEditMode
 import com.android.systemui.qs.composefragment.viewmodel.QSFragmentComposeViewModel
 import com.android.systemui.qs.flags.QSComposeFragment
 import com.android.systemui.qs.footer.ui.compose.FooterActions
+import com.android.systemui.qs.ui.composable.closePenguinSheetsOnOutsideTap
+import com.android.systemui.qs.ui.composable.PenguinGridQuickSettings
 import com.android.systemui.qs.panels.shared.model.QSFragmentComposeClippingTableLog
 import com.android.systemui.qs.panels.ui.compose.EditMode
 import com.android.systemui.qs.panels.ui.compose.QuickQuickSettings
@@ -189,11 +192,24 @@ constructor(
     @Background private val backgroundDispatcher: CoroutineDispatcher,
     private val mediaLogger: MediaViewLogger,
     @ShadeDisplayAware private val configurationController: ConfigurationController,
+    // [PenguinOS] Quick Settings panel style (Settings.Secure qs_panel_style).
+    private val qsPanelStyleRepository:
+        com.android.systemui.qs.shared.style.QsPanelStyleRepository,
+    private val iconTilesViewModel:
+        com.android.systemui.qs.panels.ui.viewmodel.IconTilesViewModel,
     // [PenguinOS] Media volume slider under the brightness slider.
     private val audioStreamSliderViewModelFactory:
         com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel
             .AudioStreamSliderViewModel.Factory,
+    // [Miku-Picked UI] ColorCC panel style (qs_panel_style 7).
+    private val colorCcQsHost: com.android.systemui.qs.QSHost,
+    private val colorCcAccessPoints:
+        com.android.systemui.statusbar.connectivity.AccessPointController,
 ) : LifecycleFragment(), QS, Dumpable {
+
+    init {
+        com.android.systemui.qs.shared.style.PenguinQsStyle.repository = qsPanelStyleRepository
+    }
 
     private val qsVolumeSliderViewModel by lazy {
         audioStreamSliderViewModelFactory.create(
@@ -243,6 +259,9 @@ constructor(
     private val containerView: FrameLayoutTouchPassthrough?
         get() = view as? FrameLayoutTouchPassthrough
 
+    /** [Miku-Picked UI] ColorCC, over the ComposeView while that style is chosen. */
+    private var colorCcHost: com.android.systemui.picked.colorcc.ColorCcHost? = null
+
     override fun onStart() {
         super.onStart()
         registerDumpable()
@@ -280,11 +299,14 @@ constructor(
         val canScrollQs =
             object : CanScrollQs {
                 override fun forward(): Boolean {
+                    // [Miku-Picked UI] ColorCC scrolls its own cards.
+                    colorCcHost?.let { if (it.active) return it.canScroll(down = true) }
                     return (scrollState.canScrollForward && viewModel.isQsFullyExpanded) ||
                         isCustomizing
                 }
 
                 override fun backward(): Boolean {
+                    colorCcHost?.let { if (it.active) return it.canScroll(down = false) }
                     return (scrollState.canScrollBackward && viewModel.isQsFullyExpanded) ||
                         isCustomizing
                 }
@@ -309,7 +331,45 @@ constructor(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT,
         )
+        addColorCc(frame)
         return frame
+    }
+
+    /**
+     * [Miku-Picked UI] ColorCC (qs_panel_style 7) draws the expanded panel as views of its own,
+     * over the ComposeView; Quick Quick Settings stays the compose one.
+     */
+    private fun addColorCc(frame: FrameLayout) {
+        val colorCcContainer =
+            FrameLayout(frame.context).apply {
+                clipChildren = false
+                clipToPadding = false
+            }
+        frame.addView(
+            colorCcContainer,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        )
+        val host =
+            com.android.systemui.picked.colorcc.ColorCcHost(
+                colorCcContainer,
+                viewModel,
+                colorCcQsHost,
+                colorCcAccessPoints,
+            )
+        colorCcHost = host
+        colorCcContainer.repeatWhenAttached {
+            repeatOnLifecycle(Lifecycle.State.CREATED) {
+                launch {
+                    qsPanelStyleRepository.style.collect {
+                        host.setWanted(
+                            it == com.android.systemui.qs.shared.style.QsPanelStyle.ColorCc
+                        )
+                    }
+                }
+                launch { snapshotFlow { host.expansion() }.collect { host.onExpansionChanged() } }
+            }
+        }
     }
 
     @Composable
@@ -331,6 +391,8 @@ constructor(
                             .graphicsLayer {
                                 alpha = viewModel.viewAlpha * PickedPanelSwitch.qsAlpha
                             }
+                            // [PenguinOS] Control Centre: a tap outside an open sheet closes it.
+                            .closePenguinSheetsOnOutsideTap()
                             .thenIf(!Flags.notificationShadeBlur()) {
                                 Modifier.offset {
                                     IntOffset(
@@ -1011,26 +1073,48 @@ constructor(
                                         end = qsHorizontalMargin(),
                                     )
                         ) {
-                            QuickSettingsLayout(
-                                brightness =
-                                    if (viewModel.isBrightnessSliderVisible) {
-                                        { BrightnessSlider() }
-                                    } else {
-                                        {}
-                                    },
-                                tiles = TileGrid,
-                                media = Media,
-                                mediaInRow = viewModel.qsMediaInRow,
-                            )
+                            // [PenguinOS] The Control Centre (PenguinOS' "Penguin" style) draws
+                            // the whole expanded panel; the stock layout otherwise.
+                            val panelStyle by qsPanelStyleRepository.style.collectAsState()
+                            if (colorCcHost?.active == true) {
+                                // [Miku-Picked UI] ColorCC's own view draws the expanded panel.
+                            } else if (panelStyle ==
+                                    com.android.systemui.qs.shared.style.QsPanelStyle.Penguin) {
+                                val largeTiles by iconTilesViewModel.largeTiles.collectAsState()
+                                CompositionLocalProvider(
+                                    com.android.systemui.qs.shared.style.LocalQsPanelStyle
+                                        provides panelStyle,
+                                    com.android.systemui.qs.ui.composable.LocalQsLargeTiles
+                                        provides largeTiles,
+                                ) {
+                                    // Inside this fragment's own QuickSettingsContent element.
+                                    PenguinGridQuickSettings(containerViewModel, tagContent = false)
+                                }
+                            } else {
+                                QuickSettingsLayout(
+                                    brightness =
+                                        if (viewModel.isBrightnessSliderVisible) {
+                                            { BrightnessSlider() }
+                                        } else {
+                                            {}
+                                        },
+                                    tiles = TileGrid,
+                                    media = Media,
+                                    mediaInRow = viewModel.qsMediaInRow,
+                                )
+                            }
                         }
                     }
                 }
-                QuickSettingsTheme {
-                    Element(
-                        Elements.FooterActions,
-                        Modifier.sysuiResTag(ResIdTags.qsFooterActions),
-                    ) {
-                        FooterActions(viewModel = viewModel.footerActionsViewModel)
+                // [Miku-Picked UI] ColorCC has its own edit, power and settings buttons.
+                if (colorCcHost?.active != true) {
+                    QuickSettingsTheme {
+                        Element(
+                            Elements.FooterActions,
+                            Modifier.sysuiResTag(ResIdTags.qsFooterActions),
+                        ) {
+                            FooterActions(viewModel = viewModel.footerActionsViewModel)
+                        }
                     }
                 }
             }
