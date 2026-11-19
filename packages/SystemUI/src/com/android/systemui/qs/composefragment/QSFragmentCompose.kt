@@ -1087,6 +1087,10 @@ constructor(
                             val panelStyle by qsPanelStyleRepository.style.collectAsState()
                             if (colorCcHost?.active == true) {
                                 // [Miku-Picked UI] ColorCC's own view draws the expanded panel.
+                                // The QQS -> QS transition (landscape, where the split shade is
+                                // off) anchors the tiles to the grid anchor, and throws if this
+                                // scene has none, which crashed SystemUI.
+                                GridAnchor()
                             } else if (panelStyle ==
                                     com.android.systemui.qs.shared.style.QsPanelStyle.Penguin) {
                                 val largeTiles by iconTilesViewModel.largeTiles.collectAsState()

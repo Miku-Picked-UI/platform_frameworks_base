@@ -5,12 +5,16 @@
 
 package com.android.systemui.picked.colorcc
 
+import android.content.ComponentName
 import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.android.systemui.animation.ActivityTransitionAnimator
+import com.android.systemui.animation.DialogCuj
+import com.android.systemui.animation.DialogTransitionAnimator
 import com.android.systemui.animation.Expandable
 import com.android.systemui.qs.QSHost
 import com.android.systemui.qs.composefragment.viewmodel.QSFragmentComposeViewModel
@@ -49,7 +53,7 @@ class ColorCcHost(
             panel = null
         }
         active = panel != null
-        if (!active) ColorCcHeaderCover.cover = 0f
+        if (!active) ColorCcHeaderCover.panel = 0f
     }
 
     /** The control centre moved (QQS to QS, or the whole shade). */
@@ -57,7 +61,7 @@ class ColorCcHost(
         if (!active) return
         // The stock header goes as soon as QS (not QQS) is what opens: on a direct pull to QS the
         // QS progress is already 1, so it never shows; QQS -> QS fades it with the progress.
-        ColorCcHeaderCover.cover =
+        ColorCcHeaderCover.panel =
             if (viewModel.isQsVisibleAndAnyShadeExpanded) qsProgress() else 0f
         Hook.onShadeExpansion(expansion())
     }
@@ -87,7 +91,10 @@ class ColorCcHost(
     override fun stockScreen(): Boolean = viewModel.isEditing
 
     override fun openPowerMenu() {
-        viewModel.footerActionsViewModel.power?.let { it.onClick(Expandable.fromView(container)) }
+        // Not Expandable.fromView(container): the dialog animator refuses to launch from a view
+        // that is not a LaunchableView (IllegalArgumentException, so the button did nothing).
+        // ColorCC's buttons are plain views, so the power menu opens without the launch animation.
+        viewModel.footerActionsViewModel.power?.onClick(NoLaunchAnimation)
     }
 
     override fun onPanelGone() {
@@ -96,8 +103,22 @@ class ColorCcHost(
             Hook.detach(container)
             panel = null
             active = false
-            ColorCcHeaderCover.cover = 0f
+            ColorCcHeaderCover.panel = 0f
         }
+    }
+
+    private object NoLaunchAnimation : Expandable {
+        override fun activityTransitionController(
+            launchCujType: Int?,
+            cookie: ActivityTransitionAnimator.TransitionCookie?,
+            component: ComponentName?,
+            returnCujType: Int?,
+            isEphemeral: Boolean,
+        ): ActivityTransitionAnimator.Controller? = null
+
+        override fun dialogTransitionController(
+            cuj: DialogCuj?
+        ): DialogTransitionAnimator.Controller? = null
     }
 
     private companion object {
