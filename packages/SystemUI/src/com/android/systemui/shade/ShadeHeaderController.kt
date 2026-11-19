@@ -238,11 +238,21 @@ constructor(
     var shadeExpandedFraction = -1f
         set(value) {
             if (qsVisible && field != value) {
-                header.alpha = ShadeInterpolation.getContentAlpha(value)
                 field = value
+                applyHeaderAlpha()
                 updateIgnoredSlots()
             }
         }
+
+    /**
+     * [Miku-Picked UI] The header fades in with the shade, and out again while the ColorCC panel
+     * (which draws its own clock and status row) covers it.
+     */
+    private fun applyHeaderAlpha() {
+        header.alpha =
+            ShadeInterpolation.getContentAlpha(shadeExpandedFraction.coerceAtLeast(0f)) *
+                (1f - com.android.systemui.picked.colorcc.ColorCcHeaderCover.cover)
+    }
 
     /** Expansion fraction of the QQS <-> QS animation. */
     var qsExpandedFraction = -1f
@@ -467,6 +477,9 @@ constructor(
 
     override fun onViewAttached() {
         privacyIconsController.chipVisibilityListener = chipVisibilityListener
+        com.android.systemui.picked.colorcc.ColorCcHeaderCover.listener = {
+            if (qsVisible && shadeExpandedFraction >= 0f) applyHeaderAlpha()
+        }
         updateVisibility()
         updateTransition()
         updateCarrierGroupPadding()
@@ -491,6 +504,7 @@ constructor(
     }
 
     override fun onViewDetached() {
+        com.android.systemui.picked.colorcc.ColorCcHeaderCover.listener = null
         clock.setOnClickListener(null)
         privacyIconsController.chipVisibilityListener = null
         dumpManager.unregisterDumpable(this::class.java.simpleName)
