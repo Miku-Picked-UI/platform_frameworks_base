@@ -479,6 +479,7 @@ constructor(
         privacyIconsController.chipVisibilityListener = chipVisibilityListener
         com.android.systemui.picked.colorcc.ColorCcHeaderCover.listener = {
             if (qsVisible && shadeExpandedFraction >= 0f) applyHeaderAlpha()
+            updateVisibility()
         }
         updateVisibility()
         updateTransition()
@@ -650,7 +651,10 @@ constructor(
         val visibility =
             if (qsDisabled) {
                 View.GONE
-            } else if (qsVisible && !customizing) {
+            } else if (qsVisible && !customizing &&
+                    com.android.systemui.picked.colorcc.ColorCcHeaderCover.cover < 1f) {
+                // [Miku-Picked UI] Fully under ColorCC the header is see-through but would still
+                // take taps (its clock opened the Clock app instead of ColorCC's edit button).
                 View.VISIBLE
             } else {
                 View.INVISIBLE
