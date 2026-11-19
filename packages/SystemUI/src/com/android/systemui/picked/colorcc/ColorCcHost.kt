@@ -49,11 +49,17 @@ class ColorCcHost(
             panel = null
         }
         active = panel != null
+        if (!active) ColorCcHeaderCover.cover = 0f
     }
 
     /** The control centre moved (QQS to QS, or the whole shade). */
     fun onExpansionChanged() {
-        if (active) Hook.onShadeExpansion(expansion())
+        if (!active) return
+        // The stock header goes as soon as QS (not QQS) is what opens: on a direct pull to QS the
+        // QS progress is already 1, so it never shows; QQS -> QS fades it with the progress.
+        ColorCcHeaderCover.cover =
+            if (viewModel.isQsVisibleAndAnyShadeExpanded) qsProgress() else 0f
+        Hook.onShadeExpansion(expansion())
     }
 
     fun canScroll(down: Boolean): Boolean = active && Hook.canScrollCards(down)
@@ -62,12 +68,21 @@ class ColorCcHost(
 
     override fun accessPointController(): Any = accessPointController
 
+    /**
+     * How far ColorCC is open, following the finger. On One UI this was one fraction for the
+     * whole pull. Here the QQS -> QS progress is already 1 when the shade is pulled straight to
+     * QS (and only the shade's own fraction moves), so the panel got 1 at the first touch and
+     * popped in with its canned open animation instead of cascading in under the finger. The
+     * product moves with whichever of the two is moving.
+     */
     override fun expansion(): Float =
         if (viewModel.isQsVisibleAndAnyShadeExpanded) {
-            viewModel.expansionState.progress.coerceIn(0f, 1f)
+            qsProgress() * viewModel.panelExpansionFraction.coerceIn(0f, 1f)
         } else {
             0f
         }
+
+    private fun qsProgress(): Float = viewModel.expansionState.progress.coerceIn(0f, 1f)
 
     override fun stockScreen(): Boolean = viewModel.isEditing
 
@@ -81,6 +96,7 @@ class ColorCcHost(
             Hook.detach(container)
             panel = null
             active = false
+            ColorCcHeaderCover.cover = 0f
         }
     }
 

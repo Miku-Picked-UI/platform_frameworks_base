@@ -367,7 +367,16 @@ constructor(
                         )
                     }
                 }
-                launch { snapshotFlow { host.expansion() }.collect { host.onExpansionChanged() } }
+                launch {
+                    snapshotFlow {
+                            Triple(
+                                viewModel.isQsVisibleAndAnyShadeExpanded,
+                                viewModel.expansionState.progress,
+                                viewModel.panelExpansionFraction,
+                            )
+                        }
+                        .collect { host.onExpansionChanged() }
+                }
             }
         }
     }
