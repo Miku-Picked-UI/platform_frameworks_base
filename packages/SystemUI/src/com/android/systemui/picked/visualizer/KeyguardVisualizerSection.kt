@@ -41,6 +41,7 @@ constructor(
 ) : KeyguardSection() {
 
     private var view: LockscreenVisualizerView? = null
+    private var layout: ConstraintLayout? = null
     private var enabled = false
     private var playing = false
     private var observing = false
@@ -70,6 +71,7 @@ constructor(
             setColor(accentColor())
         }
         constraintLayout.addView(view)
+        layout = constraintLayout
     }
 
     override fun bindData(constraintLayout: ConstraintLayout) {
@@ -86,6 +88,7 @@ constructor(
     override fun applyConstraints(constraintSet: ConstraintSet) {
         val height = (64 * context.resources.displayMetrics.density).toInt()
         val margin = (32 * context.resources.displayMetrics.density).toInt()
+        val gap = (8 * context.resources.displayMetrics.density).toInt()
         constraintSet.apply {
             constrainWidth(R.id.picked_lockscreen_visualizer, ConstraintSet.MATCH_CONSTRAINT)
             constrainHeight(R.id.picked_lockscreen_visualizer, height)
@@ -93,8 +96,15 @@ constructor(
                 ConstraintSet.PARENT_ID, ConstraintSet.START, margin)
             connect(R.id.picked_lockscreen_visualizer, ConstraintSet.END,
                 ConstraintSet.PARENT_ID, ConstraintSet.END, margin)
-            connect(R.id.picked_lockscreen_visualizer, ConstraintSet.BOTTOM,
-                R.id.keyguard_indication_area, ConstraintSet.TOP)
+            // The Now Bar sits right above the indication area while music plays; sit on top of it
+            // so the bars are not hidden behind its card.
+            if (layout?.findViewById<View?>(R.id.picked_now_bar) != null) {
+                connect(R.id.picked_lockscreen_visualizer, ConstraintSet.BOTTOM,
+                    R.id.picked_now_bar, ConstraintSet.TOP, gap)
+            } else {
+                connect(R.id.picked_lockscreen_visualizer, ConstraintSet.BOTTOM,
+                    R.id.keyguard_indication_area, ConstraintSet.TOP)
+            }
             setVisibilityMode(R.id.picked_lockscreen_visualizer, ConstraintSet.VISIBILITY_MODE_IGNORE)
         }
     }
@@ -109,6 +119,7 @@ constructor(
         view?.setActive(false)
         view?.let(constraintLayout::removeView)
         view = null
+        layout = null
     }
 
     private fun refresh() {

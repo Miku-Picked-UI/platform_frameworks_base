@@ -15,3 +15,22 @@
 -keepclassmembers class com.android.systemui.statusbar.notification.promoted.** { *; }
 -keep class com.android.systemui.shared.system.TaskStackChangeListener { *; }
 -keepclassmembers class com.android.systemui.shared.system.TaskStackChangeListeners { *; }
+
+# [Miku-Picked UI] ColorCC (vendor/colorcc, Quick Settings style 7) still drives SystemUI the way
+# its LSPosed original did: by name, through dev.colorcc.XposedHelpers. Without these, R8 strips
+# or renames what it looks up (e.g. QSHostAdapter.getTiles()), so the panel turns itself off and
+# the stock one shows.
+-keep class dev.colorcc.** { *; }
+-keepclassmembers class * implements com.android.systemui.qs.QSHost { *; }
+-keepclassmembers class com.android.systemui.qs.tileimpl.QSTileImpl { *; }
+-keepclassmembers class * extends com.android.systemui.qs.tileimpl.QSTileImpl { *; }
+-keepclassmembers class * implements com.android.systemui.statusbar.connectivity.AccessPointController { *; }
+-keepclassmembers class * implements com.android.systemui.statusbar.policy.BluetoothController { *; }
+-keepclassmembers class * implements com.android.systemui.statusbar.policy.HotspotController { *; }
+-keepclassmembers class * implements com.android.systemui.plugins.ActivityStarter { *; }
+-keepclassmembers class com.android.wifitrackerlib.WifiPickerTracker { *; }
+-keepclassmembers class com.android.wifitrackerlib.WifiEntry { *; }
+-keepclassmembers class * extends com.android.wifitrackerlib.WifiEntry { *; }
+-keepclassmembers class com.android.settingslib.bluetooth.LocalBluetoothManager { *; }
+-keepclassmembers class com.android.settingslib.bluetooth.CachedBluetoothDeviceManager { *; }
+-keepclassmembers class com.android.settingslib.bluetooth.CachedBluetoothDevice { *; }

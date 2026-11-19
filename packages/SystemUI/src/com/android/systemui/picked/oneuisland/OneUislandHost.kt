@@ -16,6 +16,7 @@ import android.view.ViewTreeObserver
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.WakefulnessLifecycle
+import com.android.systemui.picked.audio.SharedVisualizer
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.shade.ShadeExpansionStateManager
 import com.android.systemui.statusbar.CommandQueue
@@ -32,6 +33,7 @@ import com.android.systemui.statusbar.pipeline.shared.ui.model.ChipsVisibilityMo
 import dagger.Lazy
 import dev.flexy.dynamicisland.island.IslandController
 import dev.flexy.dynamicisland.island.IslandView
+import dev.flexy.dynamicisland.island.SharedAudioTap
 import java.lang.ref.WeakReference
 import java.util.function.BooleanSupplier
 import javax.inject.Inject
@@ -70,6 +72,17 @@ constructor(
 ) : CoreStartable {
 
     override fun start() {
+        // The island's music bars and the lockscreen visualizer share one output-mix tap: a second
+        // Visualizer in this process could not be enabled and stayed flat.
+        SharedAudioTap.source =
+            object : SharedAudioTap.Source {
+                override fun open(sink: SharedAudioTap.Sink): Any =
+                    SharedVisualizer.open { fft, rate -> sink.onFft(fft, rate) }
+
+                override fun close(handle: Any) {
+                    (handle as? SharedVisualizer.Sink)?.let(SharedVisualizer::close)
+                }
+            }
         val enabled =
             Settings.System.getIntForUser(
                 context.contentResolver,
