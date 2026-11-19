@@ -566,6 +566,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             v.setTransitionAlpha(alpha);
         } else {
             com.android.systemui.qs.composefragment.PickedPanelSwitch.setQsFade(alpha);
+            com.android.systemui.picked.colorcc.ColorCcHeaderCover.setQsShown(alpha);
         }
     }
 
@@ -1268,6 +1269,12 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         final int nsslVisibility =
                 !legacySplitShade || !isQsVisible || mSwipeInProgress || switching
                 ? View.VISIBLE : View.INVISIBLE;
+        // [Miku-Picked UI] ColorCC hides the stock header only while QS is the panel shown;
+        // during a switch the fade below (pickedSetAlpha) drives it.
+        if (!switching) {
+            com.android.systemui.picked.colorcc.ColorCcHeaderCover.setQsShown(
+                    !legacySplitShade || isQsVisible ? 1f : 0f);
+        }
         if (mQsFrame != null && mQsFrame.getVisibility() != qsVisibility) {
             mQsFrame.setVisibility(qsVisibility);
         }
