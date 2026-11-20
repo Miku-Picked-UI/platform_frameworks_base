@@ -12,4 +12,13 @@
     <string name="sleep_mode_notification_content">Tap to turn off sleep mode</string>
     <string name="sleep_mode_enabled_toast">Sleep mode turned on</string>
     <string name="sleep_mode_disabled_toast">Sleep mode turned off</string>
+
+    <!-- [Miku-Picked UI] Charging control (services PickedChargingControlService) -->
+    <string name="picked_charging_control_channel">Charging control</string>
+    <string name="picked_charging_control_title">Charging control is on</string>
+    <string name="picked_charging_control_limiting">Charging stops at <xliff:g id="limit">%1$d</xliff:g>%% to protect the battery</string>
+    <string name="picked_charging_control_limited">Charged to <xliff:g id="limit">%1$d</xliff:g>%%. Running on charger power to protect the battery</string>
+    <string name="picked_charging_control_charging_until">Charging to <xliff:g id="limit">%1$d</xliff:g>%% for now. Full by <xliff:g id="time">%2$s</xliff:g></string>
+    <string name="picked_charging_control_held_until">Held at <xliff:g id="limit">%1$d</xliff:g>%% to protect the battery. Full by <xliff:g id="time">%2$s</xliff:g></string>
+    <string name="picked_charging_control_charge_full">Charge to 100% now</string>
 </resources>
