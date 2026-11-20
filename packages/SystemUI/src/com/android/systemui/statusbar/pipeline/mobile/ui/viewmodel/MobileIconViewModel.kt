@@ -16,7 +16,13 @@
 
 package com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel
 
+import android.provider.Settings
+import com.android.settingslib.mobile.TelephonyIcons
+import com.android.systemui.Dependency
 import com.android.systemui.Flags.statusBarStaticInoutIndicators
+import com.android.systemui.tuner.TunerService
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
+import kotlinx.coroutines.channels.awaitClose
 import com.android.systemui.common.shared.model.ContentDescription
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.log.table.logDiffsForTable
@@ -260,17 +266,41 @@ private class CellularIconViewModel(
             )
             .stateIn(scope, SharingStarted.WhileSubscribed(), false)
 
+    /** Miku-Picked UI: Settings.System.SHOW_FOURG_ICON, show "4G" instead of "LTE". */
+    private val showFourgIcon: Flow<Boolean> =
+        conflatedCallbackFlow {
+                val tunable =
+                    TunerService.Tunable { key, newValue ->
+                        if (key == SHOW_FOURG_ICON) {
+                            trySend(TunerService.parseIntegerSwitch(newValue, false))
+                        }
+                    }
+                val tuner = Dependency.get(TunerService::class.java)
+                tuner.addTunable(tunable, SHOW_FOURG_ICON)
+                awaitClose { tuner.removeTunable(tunable) }
+            }
+            .distinctUntilChanged()
+            .stateIn(scope, SharingStarted.WhileSubscribed(), false)
+
     override val networkTypeIcon: Flow<Icon.Resource?> =
-        combine(iconInteractor.networkTypeIconGroup, showNetworkTypeIcon) {
+        combine(iconInteractor.networkTypeIconGroup, showNetworkTypeIcon, showFourgIcon) {
                 networkTypeIconGroup,
-                shouldShow ->
+                shouldShow,
+                fourg ->
                 val desc =
                     if (networkTypeIconGroup.contentDescription != 0)
-                        ContentDescription.Resource(networkTypeIconGroup.contentDescription)
+                        ContentDescription.Resource(
+                            if (fourg) lteToFourg(networkTypeIconGroup.contentDescription)
+                            else networkTypeIconGroup.contentDescription
+                        )
                     else null
                 val icon =
                     if (networkTypeIconGroup.iconId != 0)
-                        Icon.Resource(networkTypeIconGroup.iconId, desc)
+                        Icon.Resource(
+                            if (fourg) lteToFourg(networkTypeIconGroup.iconId)
+                            else networkTypeIconGroup.iconId,
+                            desc,
+                        )
                     else null
                 return@combine when {
                     !shouldShow -> null
@@ -279,6 +309,25 @@ private class CellularIconViewModel(
             }
             .distinctUntilChanged()
             .stateIn(scope, SharingStarted.WhileSubscribed(), null)
+
+    private fun lteToFourg(res: Int): Int =
+        when (res) {
+            com.android.settingslib.R.string.data_connection_lte,
+            com.android.settingslib.R.string.data_connection_4g_lte ->
+                com.android.settingslib.R.string.data_connection_4g
+            com.android.settingslib.R.string.data_connection_lte_plus,
+            com.android.settingslib.R.string.data_connection_4g_lte_plus ->
+                com.android.settingslib.R.string.data_connection_4g_plus
+            TelephonyIcons.ICON_LTE,
+            TelephonyIcons.ICON_4G_LTE -> TelephonyIcons.ICON_4G
+            TelephonyIcons.ICON_LTE_PLUS,
+            TelephonyIcons.ICON_4G_LTE_PLUS -> TelephonyIcons.ICON_4G_PLUS
+            else -> res
+        }
+
+    private companion object {
+        const val SHOW_FOURG_ICON = "system:" + Settings.System.SHOW_FOURG_ICON
+    }
 
     override val networkTypeBackground =
         iconInteractor.showSliceAttribution

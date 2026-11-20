@@ -7009,6 +7009,51 @@ public final class Settings {
         public static final String PICKED_CHARGING_CONTROL_TARGET_TIME =
                 "picked_charging_control_target_time";
 
+        /**
+         * [Miku-Picked UI] Play notification sound and vibration while the screen is on: 1 = yes (default),
+         * 0 = only with the screen off (Evolution X / crDroid).
+         * @hide
+         */
+        @Readable
+        public static final String NOTIFICATION_SOUND_VIB_SCREEN_ON = "notification_sound_vib_screen_on";
+
+        /**
+         * [Miku-Picked UI] Show the "4G" network type icon instead of "LTE" (crDroid / Evolution X).
+         * @hide
+         */
+        @Readable
+        public static final String SHOW_FOURG_ICON = "show_fourg_icon";
+
+        /**
+         * [Miku-Picked UI] Less boring heads up: only calls, alarms, the dialer and messaging apps pop up
+         * while the screen is on (crDroid / Lunaris).
+         * @hide
+         */
+        @Readable
+        public static final String LESS_BORING_HEADS_UP = "less_boring_heads_up";
+
+        /**
+         * [Miku-Picked UI] Play the screenshot sound (ringer mode normal only): 1 = yes (default)
+         * (Evolution X / POSP).
+         * @hide
+         */
+        @Readable
+        public static final String SCREENSHOT_SHUTTER_SOUND = "screenshot_shutter_sound";
+
+        /**
+         * [Miku-Picked UI] Slide along the status bar to change brightness (CyanogenMod / crDroid / Evolution X).
+         * @hide
+         */
+        @Readable
+        public static final String STATUS_BAR_BRIGHTNESS_CONTROL = "status_bar_brightness_control";
+
+        /**
+         * [Miku-Picked UI] Also allow status bar brightness control on the lock screen.
+         * @hide
+         */
+        @Readable
+        public static final String STATUS_BAR_BRIGHTNESS_CONTROL_LOCKSCREEN = "status_bar_brightness_control_lockscreen";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**
