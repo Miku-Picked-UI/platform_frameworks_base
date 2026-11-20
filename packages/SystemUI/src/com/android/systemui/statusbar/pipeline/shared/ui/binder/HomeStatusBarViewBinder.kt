@@ -43,6 +43,7 @@ import com.android.systemui.statusbar.events.shared.model.SystemEventAnimationSt
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.ConnectedDisplaysStatusBarNotificationIconViewStore
 import com.android.systemui.statusbar.notification.promoted.PromotedNotificationUi
 import com.android.systemui.statusbar.phone.LyricViewController
+import com.android.systemui.statusbar.phone.MediaLyricController
 import com.android.systemui.statusbar.phone.fragment.CollapsedStatusBarFragment
 import com.android.systemui.statusbar.phone.ongoingcall.StatusBarChipsModernization
 import com.android.systemui.statusbar.pipeline.shared.ui.model.VisibilityModel
@@ -295,8 +296,16 @@ constructor(
                     }
 
                     launch {
-                        viewModel.isLyricEnabled.collect {
-                            lyricController.isEnabled = it
+                        // Miku-Picked UI: synced lyrics for players without their own ticker
+                        // lyrics (Spotify). CollapsedStatusBarFragment wires its own.
+                        val mediaLyric = MediaLyricController(view.context, lyricController)
+                        try {
+                            viewModel.isLyricEnabled.collect {
+                                lyricController.isEnabled = it
+                                mediaLyric.setEnabled(it)
+                            }
+                        } finally {
+                            mediaLyric.destroy()
                         }
                     }
 
