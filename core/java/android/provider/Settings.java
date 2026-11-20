@@ -6970,6 +6970,45 @@ public final class Settings {
         @Readable
         public static final String PICKED_DEFAULT_REFRESH_RATE = "picked_default_refresh_rate";
 
+        /**
+         * [Miku-Picked UI] Charging control (PickedChargingControlService): 1 = on.
+         * @hide
+         */
+        @Readable
+        public static final String PICKED_CHARGING_CONTROL_ENABLED =
+                "picked_charging_control_enabled";
+
+        /**
+         * [Miku-Picked UI] Charging control mode: 1 = limit, 2 = full by the next alarm,
+         * 3 = full by {@link #PICKED_CHARGING_CONTROL_TARGET_TIME}.
+         * @hide
+         */
+        @Readable
+        public static final String PICKED_CHARGING_CONTROL_MODE = "picked_charging_control_mode";
+
+        /**
+         * [Miku-Picked UI] Charging control limit in percent (limit mode).
+         * @hide
+         */
+        @Readable
+        public static final String PICKED_CHARGING_CONTROL_LIMIT = "picked_charging_control_limit";
+
+        /**
+         * [Miku-Picked UI] Charging control start, seconds from midnight (custom mode).
+         * @hide
+         */
+        @Readable
+        public static final String PICKED_CHARGING_CONTROL_START_TIME =
+                "picked_charging_control_start_time";
+
+        /**
+         * [Miku-Picked UI] Charging control "full by" time, seconds from midnight (custom mode).
+         * @hide
+         */
+        @Readable
+        public static final String PICKED_CHARGING_CONTROL_TARGET_TIME =
+                "picked_charging_control_target_time";
+
         // ---- end Miku-Picked UI (System) ----
 
         /**

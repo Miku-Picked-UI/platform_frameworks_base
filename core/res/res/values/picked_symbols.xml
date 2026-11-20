@@ -16,6 +16,15 @@
     <java-symbol type="string" name="sleep_mode_disabled_toast" />
 
 
+    <!-- [Miku-Picked UI] Charging control -->
+    <java-symbol type="string" name="picked_charging_control_channel" />
+    <java-symbol type="string" name="picked_charging_control_title" />
+    <java-symbol type="string" name="picked_charging_control_limiting" />
+    <java-symbol type="string" name="picked_charging_control_limited" />
+    <java-symbol type="string" name="picked_charging_control_charging_until" />
+    <java-symbol type="string" name="picked_charging_control_held_until" />
+    <java-symbol type="string" name="picked_charging_control_charge_full" />
+
     <!-- [Evolution X] Pocket mode -->
     <java-symbol type="layout" name="pocket_lock_view" />
     <java-symbol type="bool" name="config_pocketModeSupported" />

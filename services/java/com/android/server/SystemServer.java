@@ -241,6 +241,7 @@ import com.android.server.policy.role.RoleServicePlatformHelperImpl;
 import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.power.SleepModeService;
+import com.android.server.power.PickedChargingControlService;
 import com.android.server.power.hint.HintManagerService;
 import com.android.server.power.thermal.ThermalManagerService;
 import com.android.server.powerstats.PowerStatsService;
@@ -2544,6 +2545,11 @@ public final class SystemServer implements Dumpable {
                 mSystemServiceManager.startService(SleepModeService.class);
                 t.traceEnd();
             }
+
+            // Miku-Picked UI: charging control through the Lineage health HAL
+            t.traceBegin("StartPickedChargingControlService");
+            mSystemServiceManager.startService(PickedChargingControlService.class);
+            t.traceEnd();
 
             t.traceBegin("StartColorDisplay");
             mSystemServiceManager.startService(ColorDisplayService.class);
