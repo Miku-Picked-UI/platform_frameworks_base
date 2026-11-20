@@ -369,10 +369,11 @@ constructor(
                 }
                 launch {
                     snapshotFlow {
-                            Triple(
+                            listOf(
                                 viewModel.isQsVisibleAndAnyShadeExpanded,
                                 viewModel.expansionState.progress,
                                 viewModel.panelExpansionFraction,
+                                com.android.systemui.picked.colorcc.ColorCcSwitch.expansion,
                             )
                         }
                         .collect { host.onExpansionChanged() }

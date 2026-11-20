@@ -508,18 +508,24 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         nssl.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         // Both panels stay drawn while mPickedSwitchAnimator is set (updateQsState()), which
         // hides the outgoing one at the end.
+        // ColorCC opens/closes along the switch instead of sliding (see ColorCcSwitch). Set
+        // before setExpanded(), so ColorCC never sees QS jump open or shut.
+        final boolean colorCc = com.android.systemui.picked.colorcc.ColorCcSwitch.getActive();
+        if (colorCc) {
+            com.android.systemui.picked.colorcc.ColorCcSwitch.setSwitchExpansion(toQs ? 0f : 1f);
+        }
         setExpandImmediate(false);
         mNotificationStackScrollLayoutController.setShouldShowShelfOnly(toQs);
         if (toQs) setListening(true);
         setExpanded(toQs);
         updateExpansion();
-        pickedApplySwitch(in, out, nssl, 0f, 0f, fromTop, dir, width, height);
+        pickedApplySwitch(in, out, nssl, 0f, 0f, fromTop, dir, width, height, colorCc, toQs);
         anim.setDuration(fromTop ? PICKED_SWITCH_TOP_MS : PICKED_SWITCH_SIDE_MS);
         anim.setInterpolator(fromTop ? PICKED_DROP : PICKED_SPRING);
         // Movement follows the curve (p); the fades follow time (t), so they stay visible
         // over the whole switch instead of finishing within the curve's first frames.
         anim.addUpdateListener(a -> pickedApplySwitch(in, out, nssl, a.getAnimatedFraction(),
-                (float) a.getAnimatedValue(), fromTop, dir, width, height));
+                (float) a.getAnimatedValue(), fromTop, dir, width, height, colorCc, toQs));
         anim.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
@@ -531,13 +537,14 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                 nssl.setLayerType(nsslLayer, null);
                 mPickedSwitchAnimator = null;
                 updateQsState();
+                if (colorCc) com.android.systemui.picked.colorcc.ColorCcSwitch.endSwitch();
             }
         });
         anim.start();
     }
 
     private static void pickedApplySwitch(View in, View out, View nssl, float t, float p,
-            boolean fromTop, float dir, float width, float height) {
+            boolean fromTop, float dir, float width, float height, boolean colorCc, boolean toQs) {
         if (fromTop) {
             in.setTranslationX(0f);
             in.setTranslationY(-PICKED_SWITCH_DROP * height * (1f - p));
@@ -552,6 +559,15 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             out.setTranslationY(0f);
             out.setTranslationX(-dir * PICKED_SWITCH_BACK * width * p);
             pickedSetAlpha(out, nssl, 1f - pickedRamp(t / 0.7f));
+        }
+        if (colorCc) {
+            // ColorCC's rows cascade in (or fold away) with its expansion, like on a pull; the
+            // frame moving as well made the two motions fight.
+            final View qsView = toQs ? in : out;
+            qsView.setTranslationX(0f);
+            qsView.setTranslationY(0f);
+            com.android.systemui.picked.colorcc.ColorCcSwitch.setSwitchExpansion(
+                    toQs ? p : 1f - p);
         }
     }
 

@@ -53,6 +53,7 @@ class ColorCcHost(
             panel = null
         }
         active = panel != null
+        ColorCcSwitch.active = active
         if (!active) ColorCcHeaderCover.panel = 0f
     }
 
@@ -80,7 +81,10 @@ class ColorCcHost(
      * product moves with whichever of the two is moving.
      */
     override fun expansion(): Float =
-        if (viewModel.isQsVisibleAndAnyShadeExpanded) {
+        if (ColorCcSwitch.expansion >= 0f) {
+            // The split shade is switching to or from QS: open or close along the switch.
+            ColorCcSwitch.expansion
+        } else if (viewModel.isQsVisibleAndAnyShadeExpanded) {
             qsProgress() * viewModel.panelExpansionFraction.coerceIn(0f, 1f)
         } else {
             0f
@@ -103,6 +107,7 @@ class ColorCcHost(
             Hook.detach(container)
             panel = null
             active = false
+            ColorCcSwitch.active = false
             ColorCcHeaderCover.panel = 0f
         }
     }
