@@ -583,6 +583,14 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         } else {
             com.android.systemui.qs.composefragment.PickedPanelSwitch.setQsFade(alpha);
             com.android.systemui.picked.colorcc.ColorCcHeaderCover.setQsShown(alpha);
+            // ColorCC is a plain View next to the ComposeView, so the compose fade above never
+            // reached it: switching to the notifications left it opaque over them until it
+            // vanished at the end. Fade the QS frame itself while ColorCC is the panel.
+            // (The reset to 1 always goes through, in case ColorCC went away mid-switch.)
+            if (com.android.systemui.picked.colorcc.ColorCcSwitch.getActive()
+                    || (alpha == 1f && v.getAlpha() != 1f)) {
+                v.setAlpha(alpha);
+            }
         }
     }
 
