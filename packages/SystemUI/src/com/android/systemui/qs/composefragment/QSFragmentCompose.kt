@@ -1093,6 +1093,9 @@ constructor(
                                 GridAnchor()
                             } else if (panelStyle ==
                                     com.android.systemui.qs.shared.style.QsPanelStyle.Penguin) {
+                                // Same as for ColorCC: the Control Centre has no grid anchor of
+                                // its own, and the landscape QQS -> QS transition needs one.
+                                GridAnchor()
                                 val largeTiles by iconTilesViewModel.largeTiles.collectAsState()
                                 CompositionLocalProvider(
                                     com.android.systemui.qs.shared.style.LocalQsPanelStyle
