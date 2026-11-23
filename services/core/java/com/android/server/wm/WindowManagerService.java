@@ -1475,6 +1475,8 @@ public class WindowManagerService extends IWindowManager.Stub
 
         mForceDesktopModeOnExternalDisplays = Settings.Global.getInt(resolver,
                 DEVELOPMENT_FORCE_DESKTOP_MODE_ON_EXTERNAL_DISPLAYS, 0) != 0;
+        // [Miku-Picked UI] Liquid Glass settings -> renderengine properties (PenguinOS)
+        PickedLiquidGlassSync.start(resolver, mH);
 
         final String displaySettingsPath = Settings.Global.getString(resolver,
                 DEVELOPMENT_WM_DISPLAY_SETTINGS_PATH);

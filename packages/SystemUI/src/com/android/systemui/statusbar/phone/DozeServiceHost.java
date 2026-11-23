@@ -37,6 +37,7 @@ import androidx.annotation.Nullable;
 import com.android.app.tracing.TraceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.keyguard.KeyguardUpdateMonitor;
+import com.android.systemui.edgelighting.EdgeLightingController;
 import com.android.systemui.assist.AssistManager;
 import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.dagger.SysUISingleton;
@@ -132,6 +133,8 @@ public final class DozeServiceHost implements DozeHost {
     private final Context mContext;
     private final AmbientDisplayConfiguration mAmbientDisplayConfiguration;
     private final AodDimInteractor mAodDimInteractor;
+    // [PenguinOS] Penguin Laboratory's edge lighting, played on notification pulses
+    private final EdgeLightingController mEdgeLightingController;
 
     @Inject
     public DozeServiceHost(DozeLog dozeLog, PowerManager powerManager,
@@ -153,7 +156,8 @@ public final class DozeServiceHost implements DozeHost {
             @Application CoroutineScope scope,
             Context context,
             AmbientDisplayConfiguration ambientDisplayConfiguration,
-            AodDimInteractor aodDimInteractor) {
+            AodDimInteractor aodDimInteractor,
+            EdgeLightingController edgeLightingController) {
         super();
         mDozeLog = dozeLog;
         mPowerManager = powerManager;
@@ -179,6 +183,7 @@ public final class DozeServiceHost implements DozeHost {
         mContext = context;
         mAmbientDisplayConfiguration = ambientDisplayConfiguration;
         mAodDimInteractor = aodDimInteractor;
+        mEdgeLightingController = edgeLightingController;
     }
 
     // TODO: we should try to not pass status bar in here if we can avoid it.
@@ -393,12 +398,17 @@ public final class DozeServiceHost implements DozeHost {
                 setPulsing(true);
                 mPulseStarted = true;
                 startAuroraPulse();
+                if (reason == DozeLog.PULSE_REASON_NOTIFICATION) {
+                    mEdgeLightingController.onNotificationPulseStarted(
+                            mHeadsUpManager.getTopEntry());
+                }
             }
 
             @Override
             public void onPulseFinished() {
                 mPulsing = false;
                 mPulseStarted = false;
+                mEdgeLightingController.onPulseFinished();
                 callback.onPulseFinished(); // requestState(DozeMachine.State.DOZE_PULSE_DONE)
                 mCentralSurfaces.updateNotificationPanelTouchState();
                 if (mScrimController != null) {
