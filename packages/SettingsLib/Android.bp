@@ -133,3 +133,26 @@ java_aconfig_library {
     name: "settingslib_media_flags_lib",
     aconfig_declarations: "settingslib_media_flags",
 }
+
+// [Miku-Picked UI] Just the Bluetooth device settings API (the AIDL interfaces and parcelables
+// under bluetooth/devicesettings), for apps that provide settings for a device in Settings'
+// device details page without linking all of SettingsLib, such as PickedPods
+// (vendor/miku/picked/airpods).
+java_library {
+    name: "SettingsLibDeviceSettingsApi",
+    srcs: [
+        // Interfaces only; the parcelable declarations are found through local_include_dirs
+        "src/com/android/settingslib/bluetooth/devicesettings/I*.aidl",
+        "src/com/android/settingslib/bluetooth/devicesettings/*.java",
+        "src/com/android/settingslib/bluetooth/devicesettings/*.kt",
+    ],
+    aidl: {
+        local_include_dirs: ["src"],
+    },
+    static_libs: [
+        "androidx.annotation_annotation",
+        "guava",
+    ],
+    sdk_version: "system_current",
+    min_sdk_version: "21",
+}
