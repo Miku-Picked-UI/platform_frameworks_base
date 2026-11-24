@@ -20,6 +20,7 @@ import android.app.Notification;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.NotificationListenerService.RankingMap;
@@ -38,9 +39,12 @@ import com.android.internal.statusbar.StatusBarIcon;
 import com.android.internal.util.ContrastColorUtil;
 import com.android.systemui.Dependency;
 import com.android.systemui.res.R;
+import com.android.systemui.picked.oneuisland.OneUislandHost;
 import com.android.systemui.plugins.DarkIconDispatcher;
 import com.android.systemui.statusbar.NotificationListener;
 import com.android.systemui.statusbar.StatusBarIconView;
+
+import dev.flexy.dynamicisland.island.IslandController;
 
 import java.util.ArrayList;
 
@@ -75,6 +79,15 @@ public abstract class LyricViewController implements
 
     private ColorStateList mTintColorStateList;
 
+    // Miku-Picked UI: while the OneUisland island is out, the lyrics only use the width beside it
+    // instead of running underneath it.
+    private final IslandController.CoverageListener mIslandListener = this::onIslandCoverage;
+    private final RectF mIsland = new RectF();
+    private boolean mIslandActive;
+    private final int[] mLoc = new int[2];
+    private final int mBasePaddingStart, mBasePaddingEnd;
+    private final float mIslandMargin;
+
     public LyricViewController(Context context, View statusBar) {
         mContext = context;
         mLyricContainer = statusBar.findViewById(R.id.lyric_container);
@@ -103,6 +116,48 @@ public abstract class LyricViewController implements
 
         Dependency.get(DarkIconDispatcher.class).addDarkReceiver(this);
         Dependency.get(NotificationListener.class).addNotificationHandler(this);
+
+        mBasePaddingStart = mLyricContainer.getPaddingStart();
+        mBasePaddingEnd = mLyricContainer.getPaddingEnd();
+        mIslandMargin = 8 * context.getResources().getDisplayMetrics().density;
+        // Its position moves with the clock/icons and when it is shown: re-check after layouts
+        mLyricContainer.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (l != ol || r != or || t != ot || b != ob) v.post(this::applyIslandInset);
+        });
+        OneUislandHost.addCoverageListener(mIslandListener);
+    }
+
+    private void onIslandCoverage(RectF bounds, boolean active) {
+        mIsland.set(bounds);
+        mIslandActive = active;
+        applyIslandInset();
+    }
+
+    /** Pads the lyrics away from the island on whichever side of it leaves them more room. */
+    private void applyIslandInset() {
+        final View v = mLyricContainer;
+        final boolean rtl = v.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+        int left = rtl ? mBasePaddingEnd : mBasePaddingStart;
+        int right = rtl ? mBasePaddingStart : mBasePaddingEnd;
+        if (mIslandActive && v.isAttachedToWindow() && v.getWidth() > 0) {
+            v.getLocationOnScreen(mLoc);
+            final float l = mLoc[0], r = l + v.getWidth(), t = mLoc[1], b = t + v.getHeight();
+            final boolean overlaps = mIsland.bottom > t && mIsland.top < b
+                    && mIsland.right > l - mIslandMargin && mIsland.left < r + mIslandMargin;
+            if (overlaps) {
+                final float before = mIsland.left - mIslandMargin - l;
+                final float after = r - (mIsland.right + mIslandMargin);
+                if (before >= after) {
+                    right = Math.max(right, Math.round(r - (mIsland.left - mIslandMargin)));
+                } else {
+                    left = Math.max(left, Math.round(mIsland.right + mIslandMargin - l));
+                }
+            }
+        }
+        final int start = rtl ? right : left, end = rtl ? left : right;
+        if (start != v.getPaddingStart() || end != v.getPaddingEnd()) {
+            v.setPaddingRelative(start, v.getPaddingTop(), end, v.getPaddingBottom());
+        }
     }
 
     public void setEnabled(boolean enabled) {

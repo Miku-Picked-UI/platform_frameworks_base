@@ -7,6 +7,7 @@ package com.android.systemui.picked.oneuisland
 
 import android.app.StatusBarManager
 import android.content.Context
+import android.graphics.RectF
 import android.os.UserHandle
 import android.provider.Settings
 import android.service.notification.StatusBarNotification
@@ -35,6 +36,7 @@ import dev.flexy.dynamicisland.island.IslandController
 import dev.flexy.dynamicisland.island.IslandView
 import dev.flexy.dynamicisland.island.SharedAudioTap
 import java.lang.ref.WeakReference
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.function.BooleanSupplier
 import javax.inject.Inject
 
@@ -102,6 +104,7 @@ constructor(
         Log.i(TAG, "OneUisland started")
 
         guard("signals") { registerSignals(controller) }
+        guard("coverage") { IslandController.setCoverageListener(::dispatchCoverage) }
 
         // The status bar view may have been attached before this CoreStartable ran.
         statusBarView?.get()?.let { onStatusBarViewAttached(it) }
@@ -205,6 +208,37 @@ constructor(
 
         @Volatile private var island: IslandController? = null
         @Volatile private var statusBarView: WeakReference<View>? = null
+
+        private val coverageListeners =
+            CopyOnWriteArrayList<WeakReference<IslandController.CoverageListener>>()
+        private val lastCoverage = RectF()
+        private var lastCoverageActive = false
+
+        private fun dispatchCoverage(bounds: RectF, active: Boolean) {
+            lastCoverage.set(bounds)
+            lastCoverageActive = active
+            for (ref in coverageListeners) {
+                val l = ref.get()
+                if (l == null) {
+                    coverageListeners.remove(ref)
+                    continue
+                }
+                guard("coverage listener") { l.onIslandCoverage(RectF(bounds), active) }
+            }
+        }
+
+        /**
+         * Follows the part of the status bar the island covers (screen coordinates), so status
+         * bar content like the lyrics can stay out from under it. Held weakly: keep a reference
+         * to [listener]. Called on the main thread, right away with the current state.
+         */
+        @JvmStatic
+        fun addCoverageListener(listener: IslandController.CoverageListener) {
+            coverageListeners.add(WeakReference(listener))
+            guard("coverage listener") {
+                listener.onIslandCoverage(RectF(lastCoverage), lastCoverageActive)
+            }
+        }
 
         private inline fun <T> guard(what: String, block: () -> T): T? =
             try {
