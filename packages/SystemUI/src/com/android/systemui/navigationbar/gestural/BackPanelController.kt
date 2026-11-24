@@ -531,6 +531,7 @@ constructor(
                 maxYOffset *
                 sign(yOffset)
         mView.animateVertically(yPosition)
+        mView.setWaterFingerOffset(yOffset)
     }
 
     /**
@@ -898,6 +899,7 @@ constructor(
             }
             GestureState.ENTRY -> {
                 mView.isVisible = true
+                mView.onGestureEntry()
 
                 updateRestingArrowDimens()
                 gestureEntryTime = systemClock.uptimeMillis()
