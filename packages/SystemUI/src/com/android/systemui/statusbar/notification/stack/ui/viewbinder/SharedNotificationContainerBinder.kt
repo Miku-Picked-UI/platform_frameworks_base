@@ -173,12 +173,22 @@ constructor(
                     launch { viewModel.translationX.collect { x -> controller.translationX = x } }
 
                     launch {
-                        // [PenguinOS] Only the fingerprint icon shows on the screen-off icon AOD.
+                        // [PenguinOS] Only the fingerprint icon shows on the screen-off icon AOD,
+                        // and the Now Bar's folded or full screen art folds the notifications.
                         combine(
                                 viewModel.keyguardAlpha(viewState, this),
                                 dozeParameters.udfpsIconOnly,
-                            ) { alpha, iconOnly ->
-                                if (iconOnly) 0f else alpha
+                                com.android.systemui.picked.nowbar.LockscreenArt
+                                    .notificationsHidden,
+                                keyguardInteractor.statusBarState,
+                            ) { alpha, iconOnly, artHidden, state ->
+                                val folded =
+                                    artHidden &&
+                                        state ==
+                                            com.android.systemui.keyguard.shared.model
+                                                .StatusBarState
+                                                .KEYGUARD
+                                if (iconOnly || folded) 0f else alpha
                             }
                             .collect {
                                 controller.setMaxAlphaForKeyguard(

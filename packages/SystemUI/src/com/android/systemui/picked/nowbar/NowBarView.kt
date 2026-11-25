@@ -164,6 +164,8 @@ class NowBarView(
     private var downX = 0f
     private var downY = 0f
     private var swiping = false
+    /** [PenguinOS] A vertical swipe on the media pill folds (down) or unfolds (up), see LockscreenArt. */
+    private var folding = false
 
     private var cornerRadius = 0f
     /** Whether the bar is (or is animating to being) on screen. */
@@ -318,7 +320,16 @@ class NowBarView(
         header.addView(headerButtons, LayoutParams(dp(40), LayoutParams.WRAP_CONTENT))
 
         val open = OnClickListener { openPlayer() }
-        bigArt.setOnClickListener(open)
+        // [PenguinOS] iOS-style media art: the art fills the lock screen instead (see
+        // LockscreenArt); the song and the open button still open the player.
+        bigArt.setOnClickListener {
+            if (LockscreenArt.expandEnabled) {
+                performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                LockscreenArt.toggleExpanded()
+            } else {
+                openPlayer()
+            }
+        }
         texts.setOnClickListener(open)
         expandedPanel.addView(header,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
@@ -697,17 +708,25 @@ class NowBarView(
     // endregion
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        if (expanded || pages.size < 2) return false
+        val canFold = !expanded && currentPage == Page.Media && LockscreenArt.foldEnabled
+        if (expanded || (pages.size < 2 && !canFold)) return false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x
                 downY = ev.y
                 swiping = false
+                folding = false
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = ev.x - downX
                 val dy = ev.y - downY
-                if (abs(dx) > touchSlop && abs(dx) > abs(dy) * 1.5f) {
+                if (canFold && abs(dy) > touchSlop && abs(dy) > abs(dx) * 1.5f) {
+                    resetPress()
+                    folding = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
+                if (pages.size >= 2 && abs(dx) > touchSlop && abs(dx) > abs(dy) * 1.5f) {
                     // The page swipe moves the bar itself; drop the press first.
                     resetPress()
                     swiping = true
@@ -720,6 +739,25 @@ class NowBarView(
     }
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (folding) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> translationY = (ev.y - downY) * 0.3f
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val dy = ev.y - downY
+                    animate().translationY(0f).setDuration(300)
+                        .setInterpolator(OvershootInterpolator(1.4f)).start()
+                    folding = false
+                    if (ev.actionMasked == MotionEvent.ACTION_UP && abs(dy) > dp(32)) {
+                        val fold = dy > 0
+                        if (fold != LockscreenArt.folded) {
+                            performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            LockscreenArt.setFolded(fold)
+                        }
+                    }
+                }
+            }
+            return true
+        }
         if (!swiping) return super.onTouchEvent(ev)
         when (ev.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
@@ -785,6 +823,7 @@ class NowBarView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        LockscreenArt.init(context)
         attached = true
         backgroundDrawer.onAttached()
         viewTreeObserver.addOnPreDrawListener(preDrawListener)
@@ -912,6 +951,7 @@ class NowBarView(
                 else -> newPages.firstOrNull()
             }
         pages = newPages
+        LockscreenArt.setMediaShowing(nowBarEnabled && Page.Media in newPages)
 
         val page = currentPage
         if (!nowBarEnabled || dozing || page == null) {
