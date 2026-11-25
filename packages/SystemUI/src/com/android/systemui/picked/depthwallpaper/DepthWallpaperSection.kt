@@ -15,6 +15,7 @@ import android.os.UserHandle
 import android.provider.Settings
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
@@ -23,6 +24,7 @@ import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.keyguard.shared.model.KeyguardSection
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.res.R
+import com.android.systemui.statusbar.StatusBarState
 import java.util.concurrent.Executor
 import javax.inject.Inject
 
@@ -39,6 +41,10 @@ import javax.inject.Inject
  * Runs right after the clock sections, so it sits above the clock, the date and smartspace but
  * below the notifications, the lock icon and the shortcuts. Hidden while dozing (no wallpaper on
  * AOD).
+ *
+ * [PenguinOS] Floating (Settings.Secure depth_wallpaper_floating, Penguin Laboratory >
+ * Experiments): the clock drifts against the phone's tilt between the wallpaper and the subject.
+ * The rotation sensor only runs while the lock screen shows the subject.
  */
 class DepthWallpaperSection
 @Inject
@@ -53,6 +59,8 @@ constructor(
     private var enabled = false
     private var loadedVersion: String? = null
     private var observing = false
+    private var floating = false
+    private val floatingMotion by lazy { FloatingDepthMotion(context) }
 
     private val observer = object : ContentObserver(mainHandler) {
         override fun onChange(selfChange: Boolean) = refresh()
@@ -60,6 +68,8 @@ constructor(
 
     private val stateListener = object : StatusBarStateController.StateListener {
         override fun onDozingChanged(isDozing: Boolean) = updateVisibility()
+
+        override fun onStateChanged(newState: Int) = updateVisibility()
     }
 
     override fun addViews(constraintLayout: ConstraintLayout) {
@@ -80,6 +90,8 @@ constructor(
             cr.registerContentObserver(Settings.Secure.getUriFor(KEY_ENABLED), false, observer,
                 UserHandle.USER_ALL)
             cr.registerContentObserver(Settings.Secure.getUriFor(KEY_VERSION), false, observer,
+                UserHandle.USER_ALL)
+            cr.registerContentObserver(Settings.Secure.getUriFor(KEY_FLOATING), false, observer,
                 UserHandle.USER_ALL)
             statusBarStateController.addCallback(stateListener)
             observing = true
@@ -111,6 +123,7 @@ constructor(
             statusBarStateController.removeCallback(stateListener)
             observing = false
         }
+        floatingMotion.stop()
         view?.let(constraintLayout::removeView)
         view = null
     }
@@ -118,6 +131,7 @@ constructor(
     private fun refresh() {
         val cr = context.contentResolver
         enabled = Settings.Secure.getIntForUser(cr, KEY_ENABLED, 0, UserHandle.USER_CURRENT) == 1
+        floating = Settings.Secure.getIntForUser(cr, KEY_FLOATING, 0, UserHandle.USER_CURRENT) == 1
         val version = Settings.Secure.getStringForUser(cr, KEY_VERSION, UserHandle.USER_CURRENT)
         if (!enabled) {
             view?.setImageDrawable(null)
@@ -154,12 +168,22 @@ constructor(
         val v = view ?: return
         val show = enabled && v.drawable != null && !statusBarStateController.isDozing
         v.visibility = if (show) View.VISIBLE else View.GONE
+        // The view stays visible after unlocking (the whole keyguard root just fades), so the
+        // motion also needs the lock screen itself.
+        val root = v.parent as? ViewGroup
+        if (show && floating && root != null &&
+            statusBarStateController.state == StatusBarState.KEYGUARD) {
+            floatingMotion.start(root)
+        } else {
+            floatingMotion.stop()
+        }
     }
 
     companion object {
         private const val TAG = "DepthWallpaper"
         const val KEY_ENABLED = "picked_depth_wallpaper_enabled"
         const val KEY_VERSION = "picked_depth_wallpaper_version"
+        const val KEY_FLOATING = "depth_wallpaper_floating"
         val SUBJECT_URI: Uri = Uri.parse("content://com.miku.picked.depthwallpaper/subject.png")
     }
 }
