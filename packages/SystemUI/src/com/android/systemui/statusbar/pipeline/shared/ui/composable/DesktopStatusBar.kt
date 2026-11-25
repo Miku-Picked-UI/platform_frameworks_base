@@ -282,7 +282,7 @@ private fun QuickSettingsChip(
  * abstracting away the boilerplate of tint calculation.
  */
 @Composable
-private fun WithAdaptiveTint(
+internal fun WithAdaptiveTint(
     isDarkProvider: (Rect) -> Boolean,
     isHighlighted: Boolean,
     modifier: Modifier = Modifier,

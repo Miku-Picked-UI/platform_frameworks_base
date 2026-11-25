@@ -397,6 +397,60 @@ fun StatusBarRoot(
     }
 }
 
+/**
+ * [PenguinOS] Stacks a small "◂ App" label under the clock while the app on screen was opened
+ * from another one, like iOS; tapping it goes back. Settings.System back_to_app_indicator.
+ */
+private fun stackBackToAppUnderClock(
+    clockView: Clock,
+    statusBarViewModel: HomeStatusBarViewModel,
+    context: Context,
+) {
+    val parent = clockView.parent as? ViewGroup ?: return
+    val index = parent.indexOfChild(clockView)
+    val clockParams = clockView.layoutParams
+    val column =
+        LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.START
+            clipChildren = false
+            layoutParams =
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                )
+        }
+    parent.removeViewAt(index)
+    parent.addView(column, index)
+    clockView.minHeight = 0
+    clockView.minimumHeight = 0
+    clockView.includeFontPadding = false
+    column.addView(
+        clockView,
+        LinearLayout.LayoutParams(clockParams.width, LinearLayout.LayoutParams.WRAP_CONTENT),
+    )
+    val labelStart = clockView.paddingStart / context.resources.displayMetrics.density
+    column.addView(
+        ComposeView(context).apply {
+            setContent {
+                WithAdaptiveTint(
+                    isDarkProvider = { bounds -> statusBarViewModel.areaDark.isDarkTheme(bounds) },
+                    isHighlighted = false,
+                ) { tint ->
+                    com.android.systemui.statusbar.backtoapp.BackToAppLabel(
+                        tint = tint,
+                        startPadding = labelStart.dp,
+                    )
+                }
+            }
+        },
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ),
+    )
+}
+
 /** Adds the composable chips shown on the start side of the status bar. */
 private fun addStartSideComposable(
     phoneStatusBarView: PhoneStatusBarView,
@@ -411,6 +465,7 @@ private fun addStartSideComposable(
     val startSideContainerView =
         phoneStatusBarView.requireViewById<View>(R.id.status_bar_start_side_container)
     val clockView = phoneStatusBarView.requireViewById<Clock>(R.id.clock)
+    stackBackToAppUnderClock(clockView, statusBarViewModel, context)
 
     val composeView =
         ComposeView(context).apply {
