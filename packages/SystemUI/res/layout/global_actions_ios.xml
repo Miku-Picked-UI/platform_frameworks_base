@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   SPDX-FileCopyrightText: 2026 The PenguinOS Project
+   SPDX-License-Identifier: Apache-2.0
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/global_actions_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:id="@+id/power_menu_ios_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingStart="@dimen/power_menu_ios_row_margin_horizontal"
+        android:paddingEnd="@dimen/power_menu_ios_row_margin_horizontal">
+
+        <com.android.systemui.globalactions.SlideToActView
+            android:id="@+id/power_menu_ios_power_off"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/power_menu_ios_group_gap" />
+
+        <com.android.systemui.globalactions.SlideToActView
+            android:id="@+id/power_menu_ios_restart"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <Space
+            android:id="@+id/power_menu_ios_restart_gap"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/power_menu_ios_row_gap" />
+
+        <com.android.systemui.globalactions.SlideToActView
+            android:id="@+id/power_menu_ios_emergency"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/power_menu_ios_emergency_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/power_menu_ios_hint_margin_top"
+            android:drawablePadding="8dp"
+            android:gravity="center"
+            android:text="@string/power_menu_ios_emergency_hint"
+            android:textColor="@color/power_menu_ios_hint"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/power_menu_ios_close"
+        android:layout_width="@dimen/power_menu_ios_close_size"
+        android:layout_height="@dimen/power_menu_ios_close_size"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="@dimen/power_menu_ios_close_margin_bottom"
+        android:background="@drawable/power_menu_ios_close_background"
+        android:contentDescription="@string/power_menu_ios_close"
+        android:padding="20dp"
+        android:src="@drawable/ic_close"
+        android:tint="@color/power_menu_ios_foreground" />
+</FrameLayout>

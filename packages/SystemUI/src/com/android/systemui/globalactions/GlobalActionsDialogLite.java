@@ -2758,6 +2758,9 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         private float mWindowDimAmount;
 
         protected ViewGroup mContainer;
+        // [PenguinOS] What the enter and exit animation moves: the grid, or the iOS rows.
+        private View mAnimatedContent;
+        private boolean mIosLayout;
 
         private final OnBackInvokedCallback mOnBackInvokedCallback = () -> {
             logOnBackInvocation();
@@ -2933,13 +2936,16 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         }
 
         public void showPowerOptionsMenu() {
-            mPowerOptionsDialog = GlobalActionsPowerDialog.create(mContext, mPowerOptionsAdapter);
+            mPowerOptionsDialog = mIosLayout
+                    ? GlobalActionsIosPowerDialog.create(mContext, mPowerOptionsAdapter)
+                    : GlobalActionsPowerDialog.create(mContext, mPowerOptionsAdapter);
             mPowerOptionsDialog.show();
         }
 
         public void showRestartOptionsMenu() {
-            mRestartOptionsDialog = GlobalActionsPowerDialog.create(mContext,
-                    mRestartOptionsAdapter);
+            mRestartOptionsDialog = mIosLayout
+                    ? GlobalActionsIosPowerDialog.create(mContext, mRestartOptionsAdapter)
+                    : GlobalActionsPowerDialog.create(mContext, mRestartOptionsAdapter);
             mRestartOptionsDialog.show();
         }
 
@@ -2953,10 +2959,16 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         }
 
         protected void initializeLayout() {
+            mIosLayout = GlobalActionsIosPowerDialog.isActive(mContext);
+            if (mIosLayout) {
+                initializeIosLayout();
+                return;
+            }
             setContentView(getLayoutResource());
             fixNavBarClipping();
 
             mGlobalActionsLayout = findViewById(com.android.systemui.res.R.id.global_actions_view);
+            mAnimatedContent = mGlobalActionsLayout;
             mGlobalActionsLayout.setListViewAccessibilityDelegate(new View.AccessibilityDelegate() {
                 @Override
                 public boolean dispatchPopulateAccessibilityEvent(
@@ -3014,6 +3026,116 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             }
         }
 
+        /**
+         * [PenguinOS] The iOS style: "slide to power off", "restart" and "emergency call" rows
+         * and a close button, over a blurred or darkened screen.
+         */
+        private void initializeIosLayout() {
+            setContentView(com.android.systemui.res.R.layout.global_actions_ios);
+            fixNavBarClipping();
+            final Resources res = mContext.getResources();
+
+            mContainer = findViewById(com.android.systemui.res.R.id.global_actions_container);
+            mContainer.setOnTouchListener((v, event) -> {
+                mGestureDetector.onTouchEvent(event);
+                return v.onTouchEvent(event);
+            });
+            mAnimatedContent = findViewById(com.android.systemui.res.R.id.power_menu_ios_content);
+            GlobalActionsIosPowerDialog.applyBackdrop(getWindow(), mContainer);
+
+            final int track = res.getColor(com.android.systemui.res.R.color.power_menu_ios_track,
+                    null);
+            final int thumb = res.getColor(com.android.systemui.res.R.color.power_menu_ios_thumb,
+                    null);
+            final int foreground = res.getColor(
+                    com.android.systemui.res.R.color.power_menu_ios_foreground, null);
+
+            SlideToActView powerOffRow =
+                    findViewById(com.android.systemui.res.R.id.power_menu_ios_power_off);
+            powerOffRow.setColors(track, thumb, foreground);
+            powerOffRow.setLabel(
+                    mContext.getText(com.android.systemui.res.R.string.power_menu_ios_power_off));
+            bindIosRow(powerOffRow, findIosAction(ShutDownAction.class), true);
+
+            SlideToActView restartRow =
+                    findViewById(com.android.systemui.res.R.id.power_menu_ios_restart);
+            restartRow.setColors(track, thumb, foreground);
+            restartRow.setLabel(
+                    mContext.getText(com.android.systemui.res.R.string.power_menu_ios_restart));
+            bindIosRow(restartRow, findIosAction(RestartAction.class), true);
+
+            SlideToActView emergencyRow =
+                    findViewById(com.android.systemui.res.R.id.power_menu_ios_emergency);
+            emergencyRow.setColors(
+                    res.getColor(com.android.systemui.res.R.color.power_menu_ios_emergency_track,
+                            null),
+                    res.getColor(com.android.systemui.res.R.color.power_menu_ios_emergency_thumb,
+                            null),
+                    res.getColor(
+                            com.android.systemui.res.R.color.power_menu_ios_emergency_foreground,
+                            null));
+            emergencyRow.setLabel(
+                    mContext.getText(com.android.systemui.res.R.string.power_menu_ios_emergency));
+            emergencyRow.setThumbText(mContext.getText(
+                    com.android.systemui.res.R.string.power_menu_ios_emergency_thumb_label));
+            bindIosRow(emergencyRow, findIosAction(EmergencyAction.class), false);
+
+            findViewById(com.android.systemui.res.R.id.power_menu_ios_emergency_hint)
+                    .setVisibility(emergencyRow.getVisibility());
+            findViewById(com.android.systemui.res.R.id.power_menu_ios_restart_gap)
+                    .setVisibility(restartRow.getVisibility() == View.VISIBLE
+                            && emergencyRow.getVisibility() == View.VISIBLE
+                            ? View.VISIBLE : View.GONE);
+            findViewById(com.android.systemui.res.R.id.power_menu_ios_close).setOnClickListener(
+                    v -> {
+                        mUiEventLogger.log(GlobalActionsEvent.GA_CLOSE_TAP_OUTSIDE);
+                        dismiss();
+                    });
+
+            if (mBackgroundDrawable == null) {
+                mBackgroundDrawable = new ScrimDrawable();
+                mScrimAlpha = 1.0f;
+            }
+            int user = mSelectedUserInteractor.getSelectedUserId();
+            if (mKeyguardShowing && mKeyguardUpdateMonitor.getUserHasTrust(user)) {
+                mLockPatternUtils.requireCredentialEntry(user);
+                showSmartLockDisabledMessage();
+            }
+        }
+
+        @Nullable
+        private Action findIosAction(Class<?> type) {
+            for (int i = 0; i < mAdapter.getCount(); i++) {
+                Action action = mAdapter.getItem(i);
+                if (type.isInstance(action)) return action;
+            }
+            for (int i = 0; i < mPowerOptionsAdapter.getCount(); i++) {
+                Action action = mPowerOptionsAdapter.getItem(i);
+                if (type.isInstance(action)) return action;
+            }
+            return null;
+        }
+
+        private void bindIosRow(SlideToActView row, @Nullable Action action, boolean useIcon) {
+            if (action == null) {
+                row.setVisibility(View.GONE);
+                return;
+            }
+            if (useIcon) row.setThumbIcon(action.getIcon(mContext));
+            row.setOnSlideCompleteListener(v -> {
+                // Same as tapping it in the grid: restart with advanced reboot opens its own
+                // menu, everything else closes this one first.
+                for (int i = 0; i < mAdapter.getCount(); i++) {
+                    if (mAdapter.getItem(i) == action) {
+                        mAdapter.onClickItem(i);
+                        return;
+                    }
+                }
+                dismiss();
+                action.onPress();
+            });
+        }
+
         protected void fixNavBarClipping() {
             ViewGroup content = findViewById(android.R.id.content);
             content.setClipChildren(false);
@@ -3057,7 +3179,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
         @Override
         protected void start() {
-            mGlobalActionsLayout.updateList();
+            if (mGlobalActionsLayout != null) mGlobalActionsLayout.updateList();
             mLightBarController.setGlobalActionsVisible(true);
 
             if (mBackgroundDrawable instanceof ScrimDrawable) {
@@ -3156,7 +3278,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 float progress = (float) valueAnimator.getAnimatedValue();
 
                 float alpha = isEnter ? progress : 1 - progress;
-                mGlobalActionsLayout.setAlpha(alpha);
+                mAnimatedContent.setAlpha(alpha);
                 window.setDimAmount(mWindowDimAmount * alpha);
 
                 // TODO(b/213872558): Support devices that don't have their power button on the
@@ -3165,16 +3287,16 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                         isEnter ? translationPx * (1 - progress) : translationPx * progress;
                 switch (rotation) {
                     case Surface.ROTATION_0:
-                        mGlobalActionsLayout.setTranslationX(translation);
+                        mAnimatedContent.setTranslationX(translation);
                         break;
                     case Surface.ROTATION_90:
-                        mGlobalActionsLayout.setTranslationY(-translation);
+                        mAnimatedContent.setTranslationY(-translation);
                         break;
                     case Surface.ROTATION_180:
-                        mGlobalActionsLayout.setTranslationX(-translation);
+                        mAnimatedContent.setTranslationX(-translation);
                         break;
                     case Surface.ROTATION_270:
-                        mGlobalActionsLayout.setTranslationY(translation);
+                        mAnimatedContent.setTranslationY(translation);
                         break;
                 }
             });
@@ -3184,13 +3306,13 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
                 @Override
                 public void onAnimationStart(Animator animation, boolean isReverse) {
-                    mPreviousLayerType = mGlobalActionsLayout.getLayerType();
-                    mGlobalActionsLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                    mPreviousLayerType = mAnimatedContent.getLayerType();
+                    mAnimatedContent.setLayerType(View.LAYER_TYPE_HARDWARE, null);
                 }
 
                 @Override
                 public void onAnimationEnd(Animator animation) {
-                    mGlobalActionsLayout.setLayerType(mPreviousLayerType, null);
+                    mAnimatedContent.setLayerType(mPreviousLayerType, null);
                     if (then != null) {
                         then.run();
                     }
@@ -3267,7 +3389,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             dismissRestartOptions();
 
             // Update the list as the max number of items per row has probably changed.
-            mGlobalActionsLayout.updateList();
+            if (mGlobalActionsLayout != null) mGlobalActionsLayout.updateList();
         }
 
         public void onRotate(int from, int to) {

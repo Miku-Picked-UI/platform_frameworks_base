@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   SPDX-FileCopyrightText: 2026 The PenguinOS Project
+   SPDX-License-Identifier: Apache-2.0
+-->
+<!-- Solid on purpose: SlideToActView tints it with SRC_IN, so the alpha of the result comes from
+     the tint colour. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <corners android:radius="@dimen/power_menu_ios_row_radius" />
+</shape>

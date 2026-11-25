@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The PenguinOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Colors for the iOS style power menu. It always draws over a black scrim, so these do not
+         follow the light/dark theme. -->
+    <color name="power_menu_ios_track">#1FF8F8F8</color>
+    <color name="power_menu_ios_thumb">#14F8F8F8</color>
+    <color name="power_menu_ios_foreground">#FFFFFFFF</color>
+    <color name="power_menu_ios_emergency_track">#33FF3B30</color>
+    <color name="power_menu_ios_emergency_thumb">#4DFF3B30</color>
+    <color name="power_menu_ios_emergency_foreground">#FFFF453A</color>
+    <color name="power_menu_ios_hint">#99EBEBF5</color>
+    <color name="power_menu_ios_close_background">#29F8F8F8</color>
+    <!-- Backdrop used when window blur is unavailable, see power_menu_ios_backdrop.xml. -->
+    <color name="power_menu_ios_backdrop_center">#FF1C1B1F</color>
+    <color name="power_menu_ios_backdrop_edge">#FF000000</color>
+    <!-- Miku-Picked UI: darkens the blur so the white rows stay readable -->
+    <color name="power_menu_ios_blur_tint">#66000000</color>
+</resources>
