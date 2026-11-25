@@ -270,6 +270,19 @@ object DeviceEntryIconViewBinder {
                             }
                             fgIconView.imageTintList =
                                 ColorStateList.valueOf(overrideColor?.toArgb() ?: viewModel.tint)
+                            // [PenguinOS] With the lock icon on top, the padlock is drawn under
+                            // the status bar; here only the fingerprint hint stays.
+                            fgIconView.alpha =
+                                if (
+                                    com.android.systemui.picked.lockicon.LockIconOnTop.hidesGlyph(
+                                        fgIconView.context,
+                                        viewModel.type,
+                                    )
+                                ) {
+                                    0f
+                                } else {
+                                    1f
+                                }
                             // Miku-Picked UI: decide from the state being set, not from
                             // drawable.current, which is still the previous state's drawable
                             // here (the image state is set last). Otherwise the custom icon

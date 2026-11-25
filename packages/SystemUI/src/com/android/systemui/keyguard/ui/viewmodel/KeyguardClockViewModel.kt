@@ -179,7 +179,9 @@ constructor(
                         clocksR.dimen.status_view_margin_horizontal
                     ),
             )
-            .getSmallClockTopPadding()
+            .getSmallClockTopPadding() +
+            // [PenguinOS] Room for the padlock when the lock icon is on top
+            com.android.systemui.picked.lockicon.LockIconOnTop.spacePx(context)
     }
 
     val smallClockTopMargin =
@@ -192,7 +194,8 @@ constructor(
 
     /** Calculates the top margin for the large clock. */
     fun getLargeClockTopMargin(): Int {
-        return if (com.android.systemui.shared.Flags.clockReactiveSmartspaceLayout()) {
+        // [PenguinOS] Room for the padlock when the lock icon is on top
+        return com.android.systemui.picked.lockicon.LockIconOnTop.spacePx(context) + if (com.android.systemui.shared.Flags.clockReactiveSmartspaceLayout()) {
             systemBarUtils.getStatusBarHeight() / 2 +
                 resources.getDimensionPixelSize(clocksR.dimen.keyguard_smartspace_top_offset)
         } else {

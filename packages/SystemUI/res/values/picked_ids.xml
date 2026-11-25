@@ -10,6 +10,8 @@
     <!-- Now Bar (lockscreen media pill) -->
     <item type="id" name="picked_now_bar" />
     <item type="id" name="picked_depth_wallpaper" />
+    <!-- [PenguinOS] Lock icon on top -->
+    <item type="id" name="picked_top_padlock" />
     <!-- Lockscreen media art background + music visualizer -->
     <item type="id" name="picked_media_art_bg" />
     <item type="id" name="picked_lockscreen_visualizer" />

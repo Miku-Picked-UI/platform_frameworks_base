@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The PenguinOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp"
+    android:height="23dp"
+    android:viewportWidth="18"
+    android:viewportHeight="23">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="2.4"
+        android:pathData="M13.6,10.5 L13.6,6.6 A4.6,4.6 0 0,0 4.4,6.6 L4.4,7.6" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M3.6,9.4 L14.4,9.4 A3.6,3.6 0 0,1 18,13 L18,19.4 A3.6,3.6 0 0,1 14.4,23 L3.6,23 A3.6,3.6 0 0,1 0,19.4 L0,13 A3.6,3.6 0 0,1 3.6,9.4 Z" />
+</vector>

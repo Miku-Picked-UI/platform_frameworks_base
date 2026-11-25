@@ -69,7 +69,9 @@ constructor(
             connect(R.id.clock_ls, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
             connect(R.id.clock_ls, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
             
-            val topMargin = (context.resources.getDimensionPixelSize(R.dimen.status_bar_height) * 1.25f).toInt()
+            val topMargin = (context.resources.getDimensionPixelSize(R.dimen.status_bar_height) * 1.25f).toInt() +
+                // [PenguinOS] Room for the padlock when the lock icon is on top
+                com.android.systemui.picked.lockicon.LockIconOnTop.spacePx(context)
             connect(R.id.clock_ls, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, topMargin)
             
             constrainHeight(R.id.clock_ls, ConstraintSet.WRAP_CONTENT)

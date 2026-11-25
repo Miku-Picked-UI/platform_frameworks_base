@@ -74,6 +74,7 @@ constructor(
     keyguardClockStyleSection: KeyguardClockStyleSection,
     nowBarSection: NowBarSection,
     depthWallpaperSection: DepthWallpaperSection,
+    topPadlockSection: com.android.systemui.picked.lockicon.TopPadlockSection,
     keyguardMediaArtSection: KeyguardMediaArtSection,
     keyguardVisualizerSection: KeyguardVisualizerSection,
 ) : KeyguardBlueprint {
@@ -101,6 +102,7 @@ constructor(
             keyguardClockStyleSection, // Miku-Picked UI: custom clocks (Evolution X)
             depthWallpaperSection, // Miku-Picked UI: depth wallpaper subject, above the clock
             nowBarSection, // Miku-Picked UI: Now Bar (lockscreen media)
+            topPadlockSection, // [PenguinOS] padlock under the status bar (lock icon on top)
             defaultDeviceEntrySection, // Add LAST: Intentionally has z-order above other views.
         )
     }
