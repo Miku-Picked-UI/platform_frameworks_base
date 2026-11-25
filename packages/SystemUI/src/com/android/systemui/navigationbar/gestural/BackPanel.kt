@@ -21,6 +21,7 @@ import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 import com.android.internal.util.LatencyTracker
 import com.android.systemui.navigationbar.gestural.BackPanelController.DelayedOnAnimationEndListener
 import com.android.systemui.qs.shared.style.LiquidGlass
+import com.android.systemui.qs.shared.style.LiquidGlassTune
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -689,6 +690,34 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
         canvas.drawPath(path, waterShadePaint)
     }
 
+    private val waterBlurRect = RectF()
+    private val waterRimPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            color = Color.WHITE
+        }
+
+    /** How much of the resting size the water's outline keeps at its deepest dip (0.6..1). */
+    private fun waterBlurScale(): Float {
+        var minRel = 0.0
+        for (i in 0 until WATER_OUTLINE_POINTS) {
+            minRel = minOf(minRel, water.rel(2 * Math.PI * i / WATER_OUTLINE_POINTS))
+        }
+        return (1 + minRel).toFloat().coerceIn(0.6f, 1f)
+    }
+
+    /** Liquid Glass's lit rim, traced along the water's outline instead of the rounded rect. */
+    private fun drawWaterRim(canvas: Canvas, path: Path) {
+        // The ColorOS style is frosted glass without the iOS-like lit rim.
+        if (LiquidGlass.cosStyle(context).value) return
+        val alpha = backgroundAlpha.pos.coerceIn(0f, 1f)
+        if (alpha <= 0f) return
+        waterRimPaint.strokeWidth = LiquidGlass.rimWidthDp * resources.displayMetrics.density
+        val rim = LiquidGlassTune.f("rim_mid", 0.32f) * LiquidGlassTune.f("view_rim", 0.9f)
+        waterRimPaint.alpha = (255 * rim * alpha).toInt().coerceIn(0, 255)
+        canvas.drawPath(path, waterRimPaint)
+    }
+
     fun popArrowAlpha(startingVelocity: Float, springForce: SpringForce? = null) {
         arrowAlpha.stretchTo(
             stretchAmount = 0f,
@@ -866,7 +895,23 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
                 )
             }
         val glass = LiquidGlass.isEnabled(context)
-        if (glass) {
+        if (glass && watery) {
+            // The blur region can only be a rounded rect, so keep it inside the water: shrink it
+            // by however far the surface currently dips in. Tint, rim and glint follow the water.
+            val k = waterBlurScale()
+            val cx = backgroundWidth / 2
+            waterBlurRect.set(cx - cx * k, -halfHeight * k, cx + cx * k, halfHeight * k)
+            drawGlassBehind(canvas, waterBlurRect, edgeCorner * k, farCorner * k)
+            canvas.drawPath(
+                arrowBackground,
+                glassTintPaint.apply {
+                    color = GLASS_TINT
+                    alpha = (Color.alpha(GLASS_TINT) * backgroundAlpha.pos).toInt()
+                },
+            )
+            drawWaterShine(canvas, arrowBackground, backgroundWidth, halfHeight * 2)
+            drawWaterRim(canvas, arrowBackground)
+        } else if (glass) {
             drawGlassBehind(canvas, arrowBackgroundRect, edgeCorner, farCorner)
             canvas.drawPath(
                 arrowBackground,
