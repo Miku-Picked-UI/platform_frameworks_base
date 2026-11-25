@@ -35,6 +35,11 @@ final class PickedLiquidGlassSync extends ContentObserver {
     private static final String REFRACTION_PROPERTY =
             "persist.sys.penguin.liquid_glass_refraction";
     private static final int REFRACTION_DEFAULT = 60;
+    // [PenguinOS] Luminous: ViewPropertyAnimator runs view animations on the render thread.
+    // Property 0 off, 1 system apps, 2 every app (com.android.internal.penguin.luminous).
+    private static final String LUMINOUS_SETTING = "penguin_luminous";
+    private static final String LUMINOUS_ALL_APPS_SETTING = "penguin_luminous_all_apps";
+    private static final String LUMINOUS_PROPERTY = "persist.sys.penguin.luminous";
 
     private final ContentResolver mResolver;
 
@@ -46,7 +51,8 @@ final class PickedLiquidGlassSync extends ContentObserver {
     static void start(ContentResolver resolver, Handler handler) {
         final PickedLiquidGlassSync sync = new PickedLiquidGlassSync(resolver, handler);
         sync.seed();
-        for (String key : new String[] {SETTING, STYLE_SETTING, REFRACTION_SETTING}) {
+        for (String key : new String[] {SETTING, STYLE_SETTING, REFRACTION_SETTING,
+                LUMINOUS_SETTING, LUMINOUS_ALL_APPS_SETTING}) {
             resolver.registerContentObserver(Settings.Secure.getUriFor(key), false, sync,
                     UserHandle.USER_ALL);
         }
@@ -83,6 +89,11 @@ final class PickedLiquidGlassSync extends ContentObserver {
             final int refraction = Settings.Secure.getIntForUser(mResolver, REFRACTION_SETTING,
                     REFRACTION_DEFAULT, UserHandle.USER_CURRENT);
             set(REFRACTION_PROPERTY, Integer.toString(clamp(refraction)));
+            final boolean luminous = Settings.Secure.getIntForUser(mResolver, LUMINOUS_SETTING,
+                    0, UserHandle.USER_CURRENT) != 0;
+            final boolean luminousAll = Settings.Secure.getIntForUser(mResolver,
+                    LUMINOUS_ALL_APPS_SETTING, 0, UserHandle.USER_CURRENT) != 0;
+            set(LUMINOUS_PROPERTY, luminous ? (luminousAll ? "2" : "1") : "0");
         } catch (RuntimeException e) {
             // A bad value must never take system_server down
         }
