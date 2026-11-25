@@ -147,6 +147,7 @@ import com.android.systemui.qs.flags.QSComposeFragment
 import com.android.systemui.qs.footer.ui.compose.FooterActions
 import com.android.systemui.qs.ui.composable.closePenguinSheetsOnOutsideTap
 import com.android.systemui.qs.ui.composable.PenguinGridQuickSettings
+import com.android.systemui.qs.ui.composable.OneUiGridQuickSettings
 import com.android.systemui.qs.panels.shared.model.QSFragmentComposeClippingTableLog
 import com.android.systemui.qs.panels.ui.compose.EditMode
 import com.android.systemui.qs.panels.ui.compose.QuickQuickSettings
@@ -1093,7 +1094,9 @@ constructor(
                                 // scene has none, which crashed SystemUI.
                                 GridAnchor()
                             } else if (panelStyle ==
-                                    com.android.systemui.qs.shared.style.QsPanelStyle.Penguin) {
+                                    com.android.systemui.qs.shared.style.QsPanelStyle.Penguin ||
+                                    panelStyle ==
+                                    com.android.systemui.qs.shared.style.QsPanelStyle.OneUi) {
                                 // Same as for ColorCC: the Control Centre has no grid anchor of
                                 // its own, and the landscape QQS -> QS transition needs one.
                                 GridAnchor()
@@ -1105,7 +1108,21 @@ constructor(
                                         provides largeTiles,
                                 ) {
                                     // Inside this fragment's own QuickSettingsContent element.
-                                    PenguinGridQuickSettings(containerViewModel, tagContent = false)
+                                    // [PenguinOS] One UI Quick Settings (Settings.Secure
+                                    // qs_oneui_experimental) is the same grid in One UI's look.
+                                    if (panelStyle ==
+                                            com.android.systemui.qs.shared.style.QsPanelStyle
+                                                .OneUi) {
+                                        OneUiGridQuickSettings(
+                                            containerViewModel,
+                                            tagContent = false,
+                                        )
+                                    } else {
+                                        PenguinGridQuickSettings(
+                                            containerViewModel,
+                                            tagContent = false,
+                                        )
+                                    }
                                 }
                             } else {
                                 QuickSettingsLayout(

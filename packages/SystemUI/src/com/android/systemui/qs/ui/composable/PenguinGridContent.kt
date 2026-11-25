@@ -312,9 +312,11 @@ fun ContentScope.PenguinGridQuickSettings(
 fun ContentScope.OneUiGridQuickSettings(
     viewModel: QuickSettingsContainerViewModel,
     modifier: Modifier = Modifier,
+    // Same as for PenguinGridQuickSettings
+    tagContent: Boolean = true,
 ) {
     CompositionLocalProvider(LocalPenguinGridFlavor provides PenguinGrid.Flavor.OneUi) {
-        PenguinGridTheme { PenguinGridQuickSettingsContent(viewModel, modifier) }
+        PenguinGridTheme { PenguinGridQuickSettingsContent(viewModel, modifier, tagContent) }
     }
 }
 
