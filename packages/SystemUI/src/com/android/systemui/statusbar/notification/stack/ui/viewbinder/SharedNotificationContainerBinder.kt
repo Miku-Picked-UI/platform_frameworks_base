@@ -51,6 +51,7 @@ constructor(
     private val communalSettingsInteractor: CommunalSettingsInteractor,
     @Main private val mainImmediateDispatcher: CoroutineDispatcher,
     val keyguardInteractor: KeyguardInteractor,
+    private val dozeParameters: com.android.systemui.statusbar.phone.DozeParameters,
 ) {
 
     private val calculateMaxNotifications: (Float, Boolean) -> Int = { space, extraShelfSpace ->
@@ -172,9 +173,19 @@ constructor(
                     launch { viewModel.translationX.collect { x -> controller.translationX = x } }
 
                     launch {
-                        viewModel.keyguardAlpha(viewState, this).collect {
-                            controller.setMaxAlphaForKeyguard(it, "SharedNotificationContainerVB")
-                        }
+                        // [PenguinOS] Only the fingerprint icon shows on the screen-off icon AOD.
+                        combine(
+                                viewModel.keyguardAlpha(viewState, this),
+                                dozeParameters.udfpsIconOnly,
+                            ) { alpha, iconOnly ->
+                                if (iconOnly) 0f else alpha
+                            }
+                            .collect {
+                                controller.setMaxAlphaForKeyguard(
+                                    it,
+                                    "SharedNotificationContainerVB",
+                                )
+                            }
                     }
 
                     if (!SceneContainerFlag.isEnabled) {

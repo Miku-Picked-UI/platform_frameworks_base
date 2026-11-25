@@ -97,6 +97,11 @@ public class DozeParameters implements
     private final Optional<MinModeManager> mMinModeManager;
 
     private boolean mDozeAlwaysOn;
+    // [PenguinOS] Screen-off fingerprint icon (doze/DozeUdfpsIconController)
+    private boolean mUdfpsIconActive;
+    private boolean mUdfpsIconPulsing;
+    private final kotlinx.coroutines.flow.MutableStateFlow<Boolean> mUdfpsIconOnly =
+            kotlinx.coroutines.flow.StateFlowKt.MutableStateFlow(false);
     private boolean mControlScreenOffAnimation;
     private boolean mIsQuickPickupEnabled;
 
@@ -164,6 +169,7 @@ public class DozeParameters implements
         tunerService.addTunable(
                 this,
                 Settings.Secure.DOZE_ALWAYS_ON,
+                "doze_udfps_icon",
                 Settings.Secure.ACCESSIBILITY_DISPLAY_INVERSION_ENABLED);
         configurationController.addCallback(this);
         statusBarStateController.addCallback(this);
@@ -289,7 +295,42 @@ public class DozeParameters implements
      * @return {@code true} if enabled and available.
      */
     public boolean getAlwaysOn() {
+        return getAlwaysOnWithoutUdfpsIcon()
+                || (mUdfpsIconActive && !mBatteryController.isAodPowerSave());
+    }
+
+    /** [PenguinOS] Whether AOD is wanted for anything but the screen-off fingerprint icon. */
+    public boolean getAlwaysOnWithoutUdfpsIcon() {
         return (mDozeAlwaysOn && !mBatteryController.isAodPowerSave()) || isMinModeActive();
+    }
+
+    /**
+     * [PenguinOS] Sets whether the fingerprint icon keeps the screen in AOD while AOD itself is
+     * off, and whether a pulse is showing, which brings back the rest of the AOD content.
+     */
+    public void setUdfpsIconState(boolean active, boolean pulsing) {
+        mUdfpsIconPulsing = pulsing;
+        if (mUdfpsIconActive == active) {
+            updateUdfpsIconOnly();
+            return;
+        }
+        mUdfpsIconActive = active;
+        updateControlScreenOff();
+        dispatchAlwaysOnEvent();
+    }
+
+    public boolean isUdfpsIconActive() {
+        return mUdfpsIconActive;
+    }
+
+    /** [PenguinOS] True while the fingerprint icon is the only thing on the dozing screen. */
+    public kotlinx.coroutines.flow.StateFlow<Boolean> getUdfpsIconOnly() {
+        return mUdfpsIconOnly;
+    }
+
+    private void updateUdfpsIconOnly() {
+        mUdfpsIconOnly.setValue(mUdfpsIconActive && !mUdfpsIconPulsing
+                && !getAlwaysOnWithoutUdfpsIcon());
     }
 
     /**
@@ -440,9 +481,12 @@ public class DozeParameters implements
 
     @Override
     public void onTuningChanged(String key, String newValue) {
-        mDozeAlwaysOn = mAmbientDisplayConfiguration.alwaysOnEnabled(mUserTracker.getUserId());
+        // [PenguinOS] Only the user's AOD switch; the screen-off fingerprint icon also counts as
+        // AOD for alwaysOnEnabled(), but it only keeps the screen on while the sensor listens.
+        mDozeAlwaysOn =
+                mAmbientDisplayConfiguration.alwaysOnContentEnabled(mUserTracker.getUserId());
 
-        if (key.equals(Settings.Secure.DOZE_ALWAYS_ON)) {
+        if (key.equals(Settings.Secure.DOZE_ALWAYS_ON) || key.equals("doze_udfps_icon")) {
             updateControlScreenOff();
         }
 
@@ -481,12 +525,14 @@ public class DozeParameters implements
         pw.println(getSelectivelyRegisterSensorsUsingProx());
         pw.print("isQuickPickupEnabled(): "); pw.println(isQuickPickupEnabled());
         pw.print("isMinModeActive(): "); pw.println(isMinModeActive());
+        pw.print("udfpsIconActive: "); pw.println(mUdfpsIconActive);
+        pw.print("udfpsIconOnly: "); pw.println(mUdfpsIconOnly.getValue());
     }
 
     private void dispatchAlwaysOnEvent() {
         mScreenOffAnimationController.onAlwaysOnChanged(getAlwaysOn());
         mDozeInteractor.setAodAvailable(getAlwaysOn());
-
+        updateUdfpsIconOnly();
     }
 
     private boolean getPostureSpecificBool(

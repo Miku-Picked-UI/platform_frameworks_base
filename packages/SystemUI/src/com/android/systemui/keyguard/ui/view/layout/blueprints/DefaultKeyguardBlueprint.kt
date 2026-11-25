@@ -76,6 +76,7 @@ constructor(
     nowBarSection: NowBarSection,
     depthWallpaperSection: DepthWallpaperSection,
     topPadlockSection: com.android.systemui.picked.lockicon.TopPadlockSection,
+    udfpsIconOnlySection: com.android.systemui.picked.lockicon.UdfpsIconOnlySection,
     keyguardMediaArtSection: KeyguardMediaArtSection,
     keyguardVisualizerSection: KeyguardVisualizerSection,
     udfpsAccessibilityOverlaySection: DefaultUdfpsAccessibilityOverlaySection,
@@ -104,6 +105,7 @@ constructor(
             keyguardAppWidgetSection, // [Lunaris AOSP] lockscreen app widgets, after the clock
             nowBarSection, // Miku-Picked UI: Now Bar (lockscreen media)
             topPadlockSection, // [PenguinOS] padlock under the status bar (lock icon on top)
+            udfpsIconOnlySection, // [PenguinOS] screen-off fingerprint icon: hides the rest
             defaultDeviceEntrySection,
             udfpsAccessibilityOverlaySection, // Add LAST: Intentionally has z-order above others
         )

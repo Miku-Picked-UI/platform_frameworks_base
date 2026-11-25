@@ -75,12 +75,15 @@ public abstract class DozeModule {
             DozeScreenBrightness dozeScreenBrightness, DozeWallpaperState dozeWallpaperState,
             DozeDockHandler dozeDockHandler, DozeMinMode dozeMinMode,
             DozeAuthRemover dozeAuthRemover,
-            DozeSuppressor dozeSuppressor, DozeTransitionListener dozeTransitionListener) {
+            DozeSuppressor dozeSuppressor, DozeTransitionListener dozeTransitionListener,
+            com.android.systemui.doze.DozeUdfpsIconController dozeUdfpsIconController) {
         List<DozeMachine.Part> parts = new ArrayList<>();
         parts.add(dozePauser);
         parts.add(dozeFalsingManagerAdapter);
         parts.add(dozeTriggers);
         parts.add(dozeUi);
+        // [PenguinOS] Screen-off fingerprint icon; right after the UI, as in PenguinOS
+        parts.add(dozeUdfpsIconController);
         parts.add(dozeScreenBrightness);
         parts.add(dozeScreenState);
         parts.add(dozeWallpaperState);

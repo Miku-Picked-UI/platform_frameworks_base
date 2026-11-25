@@ -42,6 +42,11 @@ import java.util.Map;
 @TestApi
 public class AmbientDisplayConfiguration {
     private static final String TAG = "AmbientDisplayConfig";
+    /**
+     * [PenguinOS] Settings.Secure key: keeps the under-display fingerprint icon on the otherwise
+     * dark screen while AOD itself is off (SystemUI DozeUdfpsIconController).
+     */
+    private static final String DOZE_UDFPS_ICON = "doze_udfps_icon";
     private final Context mContext;
     private final boolean mAlwaysOnByDefault;
     private final boolean mPickupGestureEnabledByDefault;
@@ -54,6 +59,7 @@ public class AmbientDisplayConfiguration {
     private static final String[] DOZE_SETTINGS = {
             Settings.Secure.DOZE_ENABLED,
             Settings.Secure.DOZE_ALWAYS_ON,
+            DOZE_UDFPS_ICON,
             Settings.Secure.DOZE_PICK_UP_GESTURE,
             Settings.Secure.DOZE_PULSE_ON_LONG_PRESS,
             Settings.Secure.DOZE_DOUBLE_TAP_GESTURE,
@@ -178,6 +184,8 @@ public class AmbientDisplayConfiguration {
 
     /** @hide */
     public boolean screenOffUdfpsEnabled(int user) {
+        // [PenguinOS] The screen-off fingerprint icon already covers it.
+        if (screenOffUdfpsIconEnabled(user)) return false;
         return !TextUtils.isEmpty(udfpsLongPressSensorType())
                 && ((mScreenOffUdfpsAvailable && Flags.screenOffUnlockUdfps())
                 && mContext.getResources().getBoolean(R.bool.config_screen_off_udfps_default_on)
@@ -259,8 +267,32 @@ public class AmbientDisplayConfiguration {
      */
     @TestApi
     public boolean alwaysOnEnabled(int user) {
+        // [PenguinOS] The screen-off fingerprint icon is AOD with its content hidden.
+        return alwaysOnContentEnabled(user) || screenOffUdfpsIconEnabled(user);
+    }
+
+    /**
+     * Returns if Always-on-Display content is enabled, not only the screen-off fingerprint icon.
+     * This is the user's Always-on-Display switch.
+     *
+     * @hide
+     */
+    public boolean alwaysOnContentEnabled(int user) {
         return boolSetting(Settings.Secure.DOZE_ALWAYS_ON, user, mAlwaysOnByDefault ? 1 : 0)
                 && alwaysOnAvailable() && !accessibilityInversionEnabled(user);
+    }
+
+    /**
+     * Returns if the under-display fingerprint icon should stay on the otherwise dark screen
+     * while full AOD is off.
+     *
+     * @hide
+     */
+    public boolean screenOffUdfpsIconEnabled(int user) {
+        return boolSettingDefaultOff(DOZE_UDFPS_ICON, user)
+                && ambientDisplayAvailable()
+                && !alwaysOnContentEnabled(user)
+                && !accessibilityInversionEnabled(user);
     }
 
     /**

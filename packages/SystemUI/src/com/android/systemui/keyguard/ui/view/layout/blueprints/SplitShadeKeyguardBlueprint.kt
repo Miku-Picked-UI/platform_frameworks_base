@@ -75,6 +75,7 @@ constructor(
     nowBarSection: NowBarSection,
     depthWallpaperSection: DepthWallpaperSection,
     topPadlockSection: com.android.systemui.picked.lockicon.TopPadlockSection,
+    udfpsIconOnlySection: com.android.systemui.picked.lockicon.UdfpsIconOnlySection,
     keyguardMediaArtSection: KeyguardMediaArtSection,
     keyguardVisualizerSection: KeyguardVisualizerSection,
 ) : KeyguardBlueprint {
@@ -103,6 +104,7 @@ constructor(
             depthWallpaperSection, // Miku-Picked UI: depth wallpaper subject, above the clock
             nowBarSection, // Miku-Picked UI: Now Bar (lockscreen media)
             topPadlockSection, // [PenguinOS] padlock under the status bar (lock icon on top)
+            udfpsIconOnlySection, // [PenguinOS] screen-off fingerprint icon: hides the rest
             defaultDeviceEntrySection, // Add LAST: Intentionally has z-order above other views.
         )
     }
