@@ -4,12 +4,9 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RadialGradient
 import android.graphics.RectF
-import android.graphics.Shader
 import android.os.UserHandle
 import android.provider.Settings
 import android.util.MathUtils.min
@@ -21,7 +18,6 @@ import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 import com.android.internal.util.LatencyTracker
 import com.android.systemui.navigationbar.gestural.BackPanelController.DelayedOnAnimationEndListener
 import com.android.systemui.qs.shared.style.LiquidGlass
-import com.android.systemui.qs.shared.style.LiquidGlassTune
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -37,9 +33,12 @@ private const val DEBUG = false
 private const val GLASS_BLUR_RADIUS = 16
 private const val GLASS_TINT = 0x1FFFFFFF
 
-// Water back arrow (tuned in BackWaterSim, .picked-tools/backwater): the bubble's outline wobbles
-// in the shape modes of a liquid drop, driven by how it moves. It bounces when it pops out and
-// jiggles when the finger moves up and down. Settings.Secure picked_back_water (default on).
+// Water back arrow (tuned in BackWaterSim, .picked-tools/backwater): the panel moves like a liquid
+// drop, in the drop's shape modes, driven by how it moves. It bounces when it pops out and jiggles
+// when the finger moves up and down. It is drawn as a Liquid Glass slab: a rounded rect (the only
+// shape SurfaceFlinger's glass refracts) whose four sides follow the water's surface, so it
+// squashes and stretches instead of being a free-form bubble. Settings.Secure picked_back_water
+// (default on).
 private const val WATER_SETTING = "picked_back_water"
 private const val WATER_WOBBLE_HZ = 2.55f
 private const val WATER_VISCOSITY = 0.174f
@@ -50,7 +49,6 @@ private const val WATER_FOLLOW_STIFFNESS = 701f
 private const val WATER_FOLLOW_DAMPING = 0.488f
 private const val WATER_DRAG_STRETCH = 0.52f
 private const val WATER_STEP_S = 0.001
-private const val WATER_OUTLINE_POINTS = 72
 
 /**
  * Shape modes of a liquid drop: r(θ) = r0(θ) · (1 + Σ a_m cos mθ + b_m sin mθ), m = 2..5.
@@ -527,11 +525,7 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
     private var centerVx = 0.0
     private var lastWaterNs = 0L
 
-    private val waterPath = Path()
-    private val waterXs = FloatArray(WATER_OUTLINE_POINTS)
-    private val waterYs = FloatArray(WATER_OUTLINE_POINTS)
-    private val waterShinePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val waterShadePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val waterRect = RectF()
 
     /** Called when a back swipe starts. */
     fun onGestureEntry() {
@@ -615,107 +609,20 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
         water.isMoving() || abs(sloshV) > 1 || abs(sloshY - sloshTarget) > 0.5 ||
             abs(centerVx) > 1
 
-    /** AOSP's rounded rect, deformed by the water, through a smooth curve. */
-    private fun waterOutline(w: Float, h: Float, edgeCorner: Float, farCorner: Float): Path {
-        val n = WATER_OUTLINE_POINTS
-        val re = minOf(edgeCorner, w / 2, h / 2)
-        val rf = minOf(farCorner, w / 2, h / 2)
+    /**
+     * AOSP's rounded rect with each side moved by the water's surface on that side (right, down,
+     * left, up), so the glass slab squashes, stretches and leans with the drop's shape modes.
+     */
+    private fun layoutWaterRect(w: Float, h: Float, out: RectF) {
         val cx = w / 2
-        val maxR = hypot(w, h)
-        for (i in 0 until n) {
-            val th = 2 * Math.PI * i / n
-            val c = cos(th).toFloat()
-            val s = sin(th).toFloat()
-            var lo = 0f
-            var hi = maxR
-            repeat(16) {
-                val mid = (lo + hi) / 2
-                if (insideRoundRect(cx + c * mid, s * mid, w, h, re, rf)) lo = mid else hi = mid
-            }
-            val rr = lo * (1 + water.rel(th)).toFloat()
-            waterXs[i] = cx + c * rr
-            waterYs[i] = s * rr
-        }
-        waterPath.reset()
-        waterPath.moveTo(waterXs[0], waterYs[0])
-        for (i in 0 until n) {
-            val i0 = (i - 1 + n) % n
-            val i2 = (i + 1) % n
-            val i3 = (i + 2) % n
-            waterPath.cubicTo(
-                waterXs[i] + (waterXs[i2] - waterXs[i0]) / 6,
-                waterYs[i] + (waterYs[i2] - waterYs[i0]) / 6,
-                waterXs[i2] - (waterXs[i3] - waterXs[i]) / 6,
-                waterYs[i2] - (waterYs[i3] - waterYs[i]) / 6,
-                waterXs[i2],
-                waterYs[i2],
-            )
-        }
-        waterPath.close()
-        return waterPath
-    }
-
-    private fun insideRoundRect(x: Float, y: Float, w: Float, h: Float, re: Float, rf: Float):
-        Boolean {
-        if (x < 0 || x > w || abs(y) > h / 2) return false
-        val edgeSide = x < w / 2
-        val r = if (edgeSide) re else rf
-        val ccx = if (edgeSide) r else w - r
-        val ccy = h / 2 - r
-        val dx = if (edgeSide) max(0f, ccx - x) else max(0f, x - ccx)
-        val dy = max(0f, abs(y) - ccy)
-        return dx * dx + dy * dy <= r * r
-    }
-
-    /** A glint that rides on the surface and a darker belly, so the bubble reads as liquid. */
-    private fun drawWaterShine(canvas: Canvas, path: Path, w: Float, h: Float) {
-        val alpha = backgroundAlpha.pos.coerceIn(0f, 1f)
-        if (alpha <= 0f || w < 1f || h < 1f) return
-        val gx = w * 0.36f + w * 0.5f * (water.a[2] * 0.5 + water.b[3] * 0.4).toFloat()
-        val gy = -h * 0.24f + h * 0.5f * (water.b[2] * 0.6 - water.a[3] * 0.3).toFloat()
-        waterShinePaint.shader =
-            RadialGradient(
-                gx,
-                gy,
-                max(w, h) * 0.42f,
-                intArrayOf(0x73FFFFFF, 0x22FFFFFF, 0x00FFFFFF),
-                floatArrayOf(0f, 0.35f, 1f),
-                Shader.TileMode.CLAMP,
-            )
-        waterShinePaint.alpha = (255 * alpha).toInt()
-        canvas.drawPath(path, waterShinePaint)
-        waterShadePaint.shader =
-            LinearGradient(0f, h * 0.1f, 0f, h * 0.6f, 0x00000000, 0x26000000, Shader.TileMode.CLAMP)
-        waterShadePaint.alpha = (255 * alpha).toInt()
-        canvas.drawPath(path, waterShadePaint)
-    }
-
-    private val waterBlurRect = RectF()
-    private val waterRimPaint =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            color = Color.WHITE
-        }
-
-    /** How much of the resting size the water's outline keeps at its deepest dip (0.6..1). */
-    private fun waterBlurScale(): Float {
-        var minRel = 0.0
-        for (i in 0 until WATER_OUTLINE_POINTS) {
-            minRel = minOf(minRel, water.rel(2 * Math.PI * i / WATER_OUTLINE_POINTS))
-        }
-        return (1 + minRel).toFloat().coerceIn(0.6f, 1f)
-    }
-
-    /** Liquid Glass's lit rim, traced along the water's outline instead of the rounded rect. */
-    private fun drawWaterRim(canvas: Canvas, path: Path) {
-        // The ColorOS style is frosted glass without the iOS-like lit rim.
-        if (LiquidGlass.cosStyle(context).value) return
-        val alpha = backgroundAlpha.pos.coerceIn(0f, 1f)
-        if (alpha <= 0f) return
-        waterRimPaint.strokeWidth = LiquidGlass.rimWidthDp * resources.displayMetrics.density
-        val rim = LiquidGlassTune.f("rim_mid", 0.32f) * LiquidGlassTune.f("view_rim", 0.9f)
-        waterRimPaint.alpha = (255 * rim * alpha).toInt().coerceIn(0, 255)
-        canvas.drawPath(path, waterRimPaint)
+        val hw = w / 2
+        val hh = h / 2
+        out.set(
+            cx - hw * (1 + water.rel(Math.PI)).toFloat(),
+            -hh * (1 + water.rel(1.5 * Math.PI)).toFloat(),
+            cx + hw * (1 + water.rel(0.0)).toFloat(),
+            hh * (1 + water.rel(0.5 * Math.PI)).toFloat(),
+        )
     }
 
     fun popArrowAlpha(startingVelocity: Float, springForce: SpringForce? = null) {
@@ -883,51 +790,52 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
             bottom = halfHeight
         }
         val watery = waterEnabled && backgroundWidth >= 1f && halfHeight >= 0.5f
-        val arrowBackground =
-            if (watery) {
-                waterOutline(backgroundWidth, halfHeight * 2, edgeCorner, farCorner)
-            } else {
+        if (watery) {
+            // Water: always a Liquid Glass slab (frosted blur where the system glass is off),
+            // squashing and stretching with the water instead of a filled bubble.
+            layoutWaterRect(backgroundWidth, halfHeight * 2, waterRect)
+            val maxCorner = minOf(waterRect.width(), waterRect.height()) / 2
+            val edge = edgeCorner.coerceAtMost(maxCorner)
+            val far = farCorner.coerceAtMost(maxCorner)
+            drawGlassBehind(canvas, waterRect, edge, far)
+            canvas.drawPath(
+                waterRect.toPathWithRoundCorners(
+                    topLeft = edge,
+                    bottomLeft = edge,
+                    topRight = far,
+                    bottomRight = far,
+                ),
+                glassTintPaint.apply {
+                    color = GLASS_TINT
+                    alpha = (Color.alpha(GLASS_TINT) * backgroundAlpha.pos).toInt()
+                },
+            )
+            drawGlassRim(canvas, waterRect, edge, far)
+        } else {
+            val arrowBackground =
                 arrowBackgroundRect.toPathWithRoundCorners(
                     topLeft = edgeCorner,
                     bottomLeft = edgeCorner,
                     topRight = farCorner,
                     bottomRight = farCorner,
                 )
+            if (LiquidGlass.isEnabled(context)) {
+                drawGlassBehind(canvas, arrowBackgroundRect, edgeCorner, farCorner)
+                canvas.drawPath(
+                    arrowBackground,
+                    glassTintPaint.apply {
+                        color = GLASS_TINT
+                        alpha = (Color.alpha(GLASS_TINT) * backgroundAlpha.pos).toInt()
+                    },
+                )
+                drawGlassRim(canvas, arrowBackgroundRect, edgeCorner, farCorner)
+            } else {
+                glassBlur?.setVisible(false, false)
+                canvas.drawPath(
+                    arrowBackground,
+                    arrowBackgroundPaint.apply { alpha = (255 * backgroundAlpha.pos).toInt() },
+                )
             }
-        val glass = LiquidGlass.isEnabled(context)
-        if (glass && watery) {
-            // The blur region can only be a rounded rect, so keep it inside the water: shrink it
-            // by however far the surface currently dips in. Tint, rim and glint follow the water.
-            val k = waterBlurScale()
-            val cx = backgroundWidth / 2
-            waterBlurRect.set(cx - cx * k, -halfHeight * k, cx + cx * k, halfHeight * k)
-            drawGlassBehind(canvas, waterBlurRect, edgeCorner * k, farCorner * k)
-            canvas.drawPath(
-                arrowBackground,
-                glassTintPaint.apply {
-                    color = GLASS_TINT
-                    alpha = (Color.alpha(GLASS_TINT) * backgroundAlpha.pos).toInt()
-                },
-            )
-            drawWaterShine(canvas, arrowBackground, backgroundWidth, halfHeight * 2)
-            drawWaterRim(canvas, arrowBackground)
-        } else if (glass) {
-            drawGlassBehind(canvas, arrowBackgroundRect, edgeCorner, farCorner)
-            canvas.drawPath(
-                arrowBackground,
-                glassTintPaint.apply {
-                    color = GLASS_TINT
-                    alpha = (Color.alpha(GLASS_TINT) * backgroundAlpha.pos).toInt()
-                },
-            )
-            drawGlassRim(canvas, arrowBackgroundRect, edgeCorner, farCorner)
-        } else {
-            glassBlur?.setVisible(false, false)
-            canvas.drawPath(
-                arrowBackground,
-                arrowBackgroundPaint.apply { alpha = (255 * backgroundAlpha.pos).toInt() },
-            )
-            if (watery) drawWaterShine(canvas, arrowBackground, backgroundWidth, halfHeight * 2)
         }
 
         val dx = arrowLength.pos
