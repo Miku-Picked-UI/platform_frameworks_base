@@ -130,6 +130,47 @@ object LiquidGlass {
 
     @JvmStatic fun isEnabled(context: Context): Boolean = enabled(context).value
 
+    /** [PenguinOS] Penguin Laboratory's dual tone switch: a faint tint behind notifications. */
+    private const val DUAL_TONE_SETTING = "penguin_liquid_glass_dual_tone"
+
+    private var dualToneState: State<Boolean>? = null
+
+    fun dualTone(context: Context): State<Boolean> =
+        dualToneState
+            ?: synchronized(this) {
+                dualToneState
+                    ?: run {
+                        val resolver = context.applicationContext.contentResolver
+                        val read = {
+                            android.provider.Settings.Secure.getIntForUser(
+                                resolver,
+                                DUAL_TONE_SETTING,
+                                0,
+                                android.os.UserHandle.USER_CURRENT,
+                            ) == 1
+                        }
+                        val value = mutableStateOf(read())
+                        resolver.registerContentObserver(
+                            android.provider.Settings.Secure.getUriFor(DUAL_TONE_SETTING),
+                            false,
+                            object : android.database.ContentObserver(
+                                Handler(Looper.getMainLooper())
+                            ) {
+                                override fun onChange(selfChange: Boolean) {
+                                    value.value = read()
+                                }
+                            },
+                            android.os.UserHandle.USER_ALL,
+                        )
+                        value.also { dualToneState = it }
+                    }
+            }
+
+    @JvmStatic fun isDualTone(context: Context): Boolean = dualTone(context).value
+
+    /** How strong the dual tone's tint is. */
+    @JvmStatic fun dualToneAlpha(): Float = LiquidGlassTune.f("dual_tone", 0.12f).coerceIn(0f, 1f)
+
     @JvmStatic
     fun notificationGap(res: Resources, default: Int): Int =
         if (state?.value == true) (NOTIFICATION_GAP_DP * res.displayMetrics.density).roundToInt()

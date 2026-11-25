@@ -1097,7 +1097,19 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener, Dump
                 // darker layer under the header and read as a gradient.
                 if (!mClipsQsScrim && !mTransparentScrimBackground
                         && com.android.systemui.qs.shared.style.LiquidGlass.isEnabled(mContext)) {
-                    mNotificationsAlpha = 0;
+                    if (com.android.systemui.qs.shared.style.LiquidGlass.isDualTone(mContext)
+                            && !com.android.systemui.penguin.CosFeatures.state(mContext,
+                                    com.android.systemui.penguin.CosFeature.Shade).getValue()) {
+                        // [PenguinOS] Dual tone: keep a faint tint behind the notifications so
+                        // they stand apart from Quick Settings. The COS shade has its own card
+                        // glass for that.
+                        mNotificationsAlpha =
+                                com.android.systemui.qs.shared.style.LiquidGlass.dualToneAlpha()
+                                        * mPanelExpansionFraction;
+                        mNotificationsTint = mContext.getColor(R.color.notification_scrim_base);
+                    } else {
+                        mNotificationsAlpha = 0;
+                    }
                     mBehindAlpha *= LIQUID_GLASS_DIM;
                 }
                 mBehindTint = mState.getBehindTint();
