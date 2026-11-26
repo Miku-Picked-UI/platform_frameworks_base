@@ -37,18 +37,58 @@ private const val GLASS_TINT = 0x1FFFFFFF
 // drop, in the drop's shape modes, driven by how it moves. It bounces when it pops out and jiggles
 // when the finger moves up and down. It is drawn as a Liquid Glass slab: a rounded rect (the only
 // shape SurfaceFlinger's glass refracts) whose four sides follow the water's surface, so it
-// squashes and stretches instead of being a free-form bubble. Settings.Secure picked_back_water
-// (default on).
+// squashes and stretches instead of being a free-form bubble. The arrow inside is warped by the
+// same surface, so it stretches, shrinks and leans with the drop. Settings.Secure
+// picked_back_water (default on); the tunables are the BackWaterSim sliders, see [WaterParams].
 private const val WATER_SETTING = "picked_back_water"
-private const val WATER_WOBBLE_HZ = 2.55f
-private const val WATER_VISCOSITY = 0.174f
-private const val WATER_POP_BOUNCE = 0.380f
-private const val WATER_POP_SPLASH = 1.23f
-private const val WATER_JIGGLE = 1.14f
-private const val WATER_FOLLOW_STIFFNESS = 701f
-private const val WATER_FOLLOW_DAMPING = 0.488f
-private const val WATER_DRAG_STRETCH = 0.52f
 private const val WATER_STEP_S = 0.001
+// Each arm of the arrow is drawn as this many segments, so the water can bend it
+private const val WATER_ARROW_SEGMENTS = 8
+
+/**
+ * The water's tunables. Each is a Settings.Secure int (the value times [scale]) set from
+ * MikuSettings > Picked features > Water back arrow, with the values tuned in BackWaterSim as
+ * defaults. Read once per swipe.
+ */
+private enum class WaterTunable(val key: String, val default: Int, val scale: Float) {
+    WOBBLE_HZ("picked_back_water_wobble", 255, 100f),
+    VISCOSITY("picked_back_water_viscosity", 174, 1000f),
+    POP_BOUNCE("picked_back_water_pop_bounce", 38, 100f),
+    POP_SPLASH("picked_back_water_pop_splash", 123, 100f),
+    JIGGLE("picked_back_water_jiggle", 114, 100f),
+    FOLLOW_STIFFNESS("picked_back_water_follow_stiffness", 701, 1f),
+    FOLLOW_DAMPING("picked_back_water_follow_damping", 488, 1000f),
+    DRAG_STRETCH("picked_back_water_drag_stretch", 52, 100f),
+    ARROW_FOLLOW("picked_back_water_arrow", 100, 100f),
+}
+
+private class WaterParams {
+    var wobbleHz = 2.55f
+    var viscosity = 0.174f
+    var popBounce = 0.38f
+    var popSplash = 1.23f
+    var jiggle = 1.14f
+    var followStiffness = 701f
+    var followDamping = 0.488f
+    var dragStretch = 0.52f
+    var arrowFollow = 1f
+
+    fun load(context: Context) {
+        val cr = context.contentResolver
+        fun read(t: WaterTunable) =
+            Settings.Secure.getIntForUser(cr, t.key, t.default, UserHandle.USER_CURRENT) / t.scale
+        // Clamped to the slider ranges, so a bad value from adb can't blow the springs up
+        wobbleHz = read(WaterTunable.WOBBLE_HZ).coerceIn(0.5f, 15f)
+        viscosity = read(WaterTunable.VISCOSITY).coerceIn(0.01f, 1f)
+        popBounce = read(WaterTunable.POP_BOUNCE).coerceIn(0.05f, 1f)
+        popSplash = read(WaterTunable.POP_SPLASH).coerceIn(0f, 5f)
+        jiggle = read(WaterTunable.JIGGLE).coerceIn(0f, 5f)
+        followStiffness = read(WaterTunable.FOLLOW_STIFFNESS).coerceIn(50f, 30000f)
+        followDamping = read(WaterTunable.FOLLOW_DAMPING).coerceIn(0.1f, 1f)
+        dragStretch = read(WaterTunable.DRAG_STRETCH).coerceIn(0f, 3f)
+        arrowFollow = read(WaterTunable.ARROW_FOLLOW).coerceIn(0f, 3f)
+    }
+}
 
 /**
  * Shape modes of a liquid drop: r(θ) = r0(θ) · (1 + Σ a_m cos mθ + b_m sin mθ), m = 2..5.
@@ -85,11 +125,11 @@ private class WaterSurface {
         vb[m] += vel * sin(m * phi)
     }
 
-    fun step(dt: Double) {
-        val w2 = 2 * Math.PI * WATER_WOBBLE_HZ
+    fun step(dt: Double, p: WaterParams) {
+        val w2 = 2 * Math.PI * p.wobbleHz
         for (m in M0..M1) {
             val w = w2 * sqrt(m * (m - 1) * (m + 2) / 8.0)
-            val z = (WATER_VISCOSITY * (m - 1) * (2 * m + 1) / 5.0).coerceAtMost(1.0)
+            val z = (p.viscosity * (m - 1) * (2 * m + 1) / 5.0).coerceAtMost(1.0)
             va[m] += (-w * w * a[m] - 2 * z * w * va[m] + fa[m]) * dt
             vb[m] += (-w * w * b[m] - 2 * z * w * vb[m] + fb[m]) * dt
             a[m] = (a[m] + va[m] * dt).coerceIn(-0.4, 0.4)
@@ -473,16 +513,16 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
                 // edge squashes it sideways first, so it rebounds tall, then wide, like a drop.
                 scale.stretchTo(
                     stretchAmount = 0f,
-                    startingVelocity = 2.5f * WATER_POP_SPLASH,
+                    startingVelocity = 2.5f * params.popSplash,
                     springForce =
-                        SpringForce().setStiffness(325f).setDampingRatio(WATER_POP_BOUNCE),
+                        SpringForce().setStiffness(325f).setDampingRatio(params.popBounce),
                 )
-                water.kick(2, -4.0 * WATER_POP_SPLASH, 0.0)
-                water.kick(3, 1.2 * WATER_POP_SPLASH, Math.PI)
+                water.kick(2, -4.0 * params.popSplash, 0.0)
+                water.kick(3, 1.2 * params.popSplash, Math.PI)
             } else {
                 // Let go of "back": it sags a little
-                scale.stretchTo(stretchAmount = 0f, startingVelocity = -1f * WATER_POP_SPLASH)
-                water.kick(2, 2.0 * WATER_POP_SPLASH, 0.0)
+                scale.stretchTo(stretchAmount = 0f, startingVelocity = -1f * params.popSplash)
+                water.kick(2, 2.0 * params.popSplash, 0.0)
             }
             horizontalTranslation.stretchTo(stretchAmount = 0f, startingVelocity * 200f)
             invalidate()
@@ -496,7 +536,7 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
         scalePivotX.snapTo(backgroundWidth.pos / 2)
         scale.stretchTo(stretchAmount = 0f, startingVelocity = startingVelocity)
         if (waterEnabled) {
-            water.kick(2, 3.0 * WATER_POP_SPLASH, 0.0)
+            water.kick(2, 3.0 * params.popSplash, 0.0)
             invalidate()
         }
     }
@@ -510,6 +550,7 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
         private set
 
     private val water = WaterSurface()
+    private val params = WaterParams()
 
     // The water's own idea of where the finger is (dp), on a soft spring: it lags, overshoots
     // and drives the jiggle when the finger moves up and down. The visible movement is still
@@ -536,6 +577,7 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
                 1,
                 UserHandle.USER_CURRENT,
             ) != 0
+        if (waterEnabled) params.load(context)
         water.reset()
         sloshY = 0.0
         sloshV = 0.0
@@ -577,8 +619,8 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
         centerAx += (ax - centerAx) * k
 
         val r = max(12.0, (backgroundWidth.pos + backgroundHeight.pos) / 4 / density)
-        val sk = WATER_FOLLOW_STIFFNESS.toDouble()
-        val sz = 2 * WATER_FOLLOW_DAMPING * sqrt(sk)
+        val sk = params.followStiffness.toDouble()
+        val sz = 2 * params.followDamping * sqrt(sk)
         var t = 0.0
         while (t < dt) {
             val h = minOf(WATER_STEP_S, dt - t)
@@ -591,16 +633,16 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
             if (am > 1) {
                 // Pseudo-gravity against the acceleration: squash along it, bulge behind
                 val phi = atan2(ay, centerAx)
-                val g = 0.11 * WATER_JIGGLE * am / r
+                val g = 0.11 * params.jiggle * am / r
                 water.force(2, -g, phi)
                 water.force(3, -0.5 * g, phi)
             }
             val vm = hypot(centerVx, sloshV).coerceAtMost(4000.0)
             if (vm > 1) {
                 // Moving: a slight teardrop along the motion
-                water.force(2, 2.0 * WATER_DRAG_STRETCH * vm / r, atan2(sloshV, centerVx))
+                water.force(2, 2.0 * params.dragStretch * vm / r, atan2(sloshV, centerVx))
             }
-            water.step(h)
+            water.step(h, params)
             t += h
         }
     }
@@ -623,6 +665,39 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
             cx + hw * (1 + water.rel(0.0)).toFloat(),
             hh * (1 + water.rel(0.5 * Math.PI)).toFloat(),
         )
+    }
+
+    private val waterArrowPath = Path()
+
+    /**
+     * The arrow in the background's frame (x away from the edge, the drop's centre at (w/2, 0)),
+     * warped by the water like the slab: every point moves out from the centre by the surface's
+     * displacement in its direction, r → r·(1 + k·rel(θ)). So the arrow squashes, stretches,
+     * leans and bends with the drop's shape modes. [ARROW_FOLLOW][WaterTunable.ARROW_FOLLOW] = k.
+     */
+    private fun layoutWaterArrow(w: Float, dx: Float, dy: Float, pointsAway: Boolean): Path {
+        val path = waterArrowPath
+        path.reset()
+        val offset = (w - dx) / 2
+        val tipX = if (pointsAway) offset + dx else offset
+        val backX = if (pointsAway) offset else offset + dx
+        val cx = w / 2
+        val k = params.arrowFollow.toDouble()
+        for (arm in 0..1) {
+            val y0 = if (arm == 0) -dy else 0f
+            val x0 = if (arm == 0) backX else tipX
+            val x1 = if (arm == 0) tipX else backX
+            val y1 = if (arm == 0) 0f else dy
+            // The second arm starts at the tip, where the first one ended
+            for (i in (if (arm == 0) 0 else 1)..WATER_ARROW_SEGMENTS) {
+                val t = i.toFloat() / WATER_ARROW_SEGMENTS
+                val px = x0 + (x1 - x0) * t - cx
+                val py = y0 + (y1 - y0) * t
+                val f = (1 + k * water.rel(atan2(py.toDouble(), px.toDouble()))).toFloat()
+                if (i == 0) path.moveTo(cx + px * f, py * f) else path.lineTo(cx + px * f, py * f)
+            }
+        }
+        return path
     }
 
     fun popArrowAlpha(startingVelocity: Float, springForce: SpringForce? = null) {
@@ -702,8 +777,8 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
             this.verticalTranslation.spring =
                 if (waterEnabled) {
                     SpringForce()
-                        .setStiffness(WATER_FOLLOW_STIFFNESS)
-                        .setDampingRatio(WATER_FOLLOW_DAMPING)
+                        .setStiffness(params.followStiffness)
+                        .setDampingRatio(params.followDamping)
                 } else {
                     it
                 }
@@ -841,6 +916,21 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
         val dx = arrowLength.pos
         val dy = arrowHeight.pos
 
+        if (watery) {
+            // The arrow rides in the water and deforms with it
+            val arrowPaint =
+                arrowPaint.apply {
+                    alpha = (255 * min(arrowAlpha.pos, backgroundAlpha.pos)).toInt()
+                }
+            canvas.drawPath(
+                layoutWaterArrow(backgroundWidth, dx, dy, !arrowsPointLeft.xor(isLeftPanel)),
+                arrowPaint,
+            )
+            canvas.restore()
+            finishDraw(canvas)
+            return
+        }
+
         // How far the arrow bounding box should be from the edge of the screen. Measured from
         // either the tip or the back of the arrow, whichever is closer
         val arrowOffset = (backgroundWidth - dx) / 2
@@ -862,7 +952,10 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
             arrowPaint.apply { alpha = (255 * min(arrowAlpha.pos, backgroundAlpha.pos)).toInt() }
         canvas.drawPath(arrowPath, arrowPaint)
         canvas.restore()
+        finishDraw(canvas)
+    }
 
+    private fun finishDraw(canvas: Canvas) {
         if (trackingBackArrowLatency) {
             latencyTracker.onActionEnd(LatencyTracker.ACTION_SHOW_BACK_ARROW)
             trackingBackArrowLatency = false
