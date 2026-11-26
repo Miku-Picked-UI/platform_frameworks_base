@@ -271,7 +271,17 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
         // Miku-Picked UI: a picked style replaces the ripple, or no animation at all.
         drawPicked = pickedEffect.begin(context, origin.x.toFloat(), origin.y.toFloat(),
             width, height)
-        if (drawPicked && pickedEffect.style == PickedUnlockEffect.STYLE_NONE) {
+        if (drawPicked && pickedEffect.style == PickedUnlockEffect.STYLE_WATER) {
+            // The screen ripples like water from the sensor while the lock screen goes away.
+            val loc = IntArray(2)
+            getLocationOnScreen(loc)
+            com.android.systemui.picked.water.WaterRipple.play(
+                context,
+                android.graphics.PointF(loc[0] + origin.x.toFloat(), loc[1] + origin.y.toFloat()),
+            )
+        }
+        if (drawPicked && (pickedEffect.style == PickedUnlockEffect.STYLE_NONE ||
+                pickedEffect.style == PickedUnlockEffect.STYLE_WATER)) {
             drawPicked = false
             onAnimationEnd?.run()
             return

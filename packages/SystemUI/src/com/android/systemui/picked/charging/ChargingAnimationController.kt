@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.PixelFormat
+import android.graphics.PointF
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.PowerManager
@@ -21,6 +22,7 @@ import android.view.WindowManager
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.picked.water.WaterRipple
 import com.android.systemui.statusbar.policy.KeyguardStateController
 import javax.inject.Inject
 
@@ -29,7 +31,8 @@ import javax.inject.Inject
  * (wired or wireless), with the battery level, live power and the time to full.
  *
  * Settings.System picked_charging_animation: 0 = off (AOSP behaviour), 1 = liquid, 2 = ring,
- * 3 = wave. While it is on, AOSP's wireless charging ripple is skipped (CentralSurfacesImpl).
+ * 3 = wave, 4 = water (Glass Layer's water ripple, picked/water). While it is on, AOSP's
+ * wireless charging ripple is skipped (CentralSurfacesImpl).
  */
 @SysUISingleton
 class ChargingAnimationController
@@ -72,7 +75,15 @@ constructor(
         if (level < 0) return
         val plugged = battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
         lastShown = now
-        show(style, level * 100 / scale, plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS)
+        val wireless = plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS
+        if (style == STYLE_WATER) {
+            val center = WaterRipple.screenCenter(context)
+            // The USB-C port is at the bottom middle; Glass Layer plays it 1.5x as long.
+            val origin = if (wireless) center else PointF(center.x, center.y * 2f)
+            WaterRipple.play(context, origin, 1.5f)
+            return
+        }
+        show(style, level * 100 / scale, wireless)
     }
 
     private fun show(style: Int, level: Int, wireless: Boolean) {
@@ -116,6 +127,8 @@ constructor(
         const val STYLE_LIQUID = 1
         const val STYLE_RING = 2
         const val STYLE_WAVE = 3
+        /** Glass Layer's water ripple from the charging port (or the middle, wireless). */
+        const val STYLE_WATER = 4
         private const val SHOW_DELAY_MS = 350L
         private const val DEBOUNCE_MS = 5000L
 

@@ -25,7 +25,8 @@ import kotlin.random.Random
  * ripple, from the fingerprint sensor (or face) location when the phone unlocks.
  *
  * Settings.System picked_unlock_animation: 0 = stock ripple, 1 = burst, 2 = rings,
- * 3 = shockwave, 4 = none.
+ * 3 = shockwave, 4 = none, 5 = water (Glass Layer's water ripple over the whole screen, see
+ * picked/water/WaterRipple).
  */
 class PickedUnlockEffect(context: Context) {
 
@@ -157,6 +158,7 @@ class PickedUnlockEffect(context: Context) {
         const val STYLE_RINGS = 2
         const val STYLE_SHOCKWAVE = 3
         const val STYLE_NONE = 4
+        const val STYLE_WATER = 5
 
         fun style(context: Context): Int =
             Settings.System.getIntForUser(
