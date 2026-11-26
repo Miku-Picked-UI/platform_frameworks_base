@@ -332,8 +332,15 @@ private constructor(
         private var initialTouchY = 0f
         private var isIntercepting = false
         private val cachedEvents = mutableListOf<MotionEvent>()
+        // [PenguinOS] DeX: this status bar is on a DeX screen and opens the Control Centre
+        private var dexBar = false
 
         override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                dexBar = DexStatusBar.isDex(mView.context, mView.context.displayId)
+            }
+            if (dexBar) return true
+
             if (event.action == MotionEvent.ACTION_DOWN) {
                 dispatchEventToShadeDisplayPolicy(event)
             }
@@ -375,6 +382,13 @@ private constructor(
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (dexBar) {
+                if (event.action == MotionEvent.ACTION_UP) {
+                    DexStatusBar.toggleControlCentre(mView.context, mView.context.displayId)
+                }
+                return true
+            }
+
             onTouch(event)
 
             // If panels aren't enabled, ignore the gesture and don't pass it down to the
