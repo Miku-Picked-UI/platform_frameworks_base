@@ -63,10 +63,11 @@ public final class GlassLayer {
     public static final String INSTALLER_DIALOGS = "installer_dialogs";
     public static final String SLIDERS = "sliders";
     public static final String BUTTONS = "buttons";
+    public static final String SWITCHES = "switches";
 
     private static final String[] SURFACES = {
         TOASTS, DIALOGS, POWER_MENU, VOLUME, STATUS_BAR_CHIPS, LOCKSCREEN_SHORTCUTS,
-        SETTINGS_CARDS, INSTALLER_DIALOGS, SLIDERS, BUTTONS,
+        SETTINGS_CARDS, INSTALLER_DIALOGS, SLIDERS, BUTTONS, SWITCHES,
     };
 
     /** See {@link View.PickedDrawDecoration#SKIP_DRAW}. */
@@ -225,7 +226,12 @@ public final class GlassLayer {
         }
         if (view.getPickedDrawDecoration() != null) return;
         Class<?> type = view.getClass();
-        if (type == android.widget.SeekBar.class) {
+        if (view instanceof android.widget.Switch || isSwitchCompat(type)) {
+            ensureRegistered();
+            GlassSwitch glass = new GlassSwitch();
+            view.setPickedDrawDecoration(glass);
+            glass.widen(view);
+        } else if (type == android.widget.SeekBar.class) {
             ensureRegistered();
             view.setPickedDrawDecoration(new GlassSlider(false));
         } else if (isMaterialSlider(type)) {
@@ -242,6 +248,23 @@ public final class GlassLayer {
                     | GlassSurface.OUTLINE_FILL
                     | (sProcess == PROCESS_SYSTEMUI ? GlassSurface.LIVE : 0));
         }
+    }
+
+    private static final android.util.ArrayMap<Class<?>, Boolean> sSwitchCompats =
+            new android.util.ArrayMap<>();
+
+    private static boolean isSwitchCompat(Class<?> type) {
+        Boolean known = sSwitchCompats.get(type);
+        if (known != null) return known;
+        boolean found = false;
+        for (Class<?> c = type; c != null && c != View.class; c = c.getSuperclass()) {
+            if (GlassSwitch.SWITCH_COMPAT.equals(c.getName())) {
+                found = true;
+                break;
+            }
+        }
+        sSwitchCompats.put(type, found);
+        return found;
     }
 
     private static boolean isMaterialSlider(Class<?> type) {
