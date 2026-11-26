@@ -8,6 +8,7 @@ package com.android.systemui.picked.nowbar
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -25,6 +26,7 @@ import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.os.UserHandle
 import android.provider.Settings
 import android.text.TextUtils
 import android.text.format.DateUtils
@@ -154,6 +156,9 @@ class NowBarView(
     private val iosTitle = TextView(context)
     private val iosArtist = TextView(context)
     private val iosOpen = ImageButton(context)
+    // Full-screen synced lyrics (vendor/miku PickedLyrics), when it's installed.
+    private val lyricsButton = ImageButton(context)
+    private val iosLyrics = ImageButton(context)
     private val iosScrubber = NowBarScrubber(context)
     private val iosElapsed = TextView(context)
     private val iosRemaining = TextView(context)
@@ -350,6 +355,12 @@ class NowBarView(
         setupButton(headerButtons, openButton, R.drawable.picked_now_bar_open, 40) {
             openPlayer()
         }
+        if (lyricsAvailable()) {
+            setupButton(headerButtons, lyricsButton, R.drawable.picked_now_bar_lyrics, 40) {
+                openLyrics()
+            }
+            lyricsButton.contentDescription = context.getString(R.string.picked_now_bar_lyrics)
+        }
         collapseButton.contentDescription = context.getString(R.string.picked_now_bar_collapse)
         openButton.contentDescription = context.getString(R.string.picked_now_bar_open)
         header.addView(headerButtons, LayoutParams(dp(40), LayoutParams.WRAP_CONTENT))
@@ -524,6 +535,10 @@ class NowBarView(
         texts.addView(iosTitle)
         texts.addView(iosArtist)
         header.addView(texts, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        if (lyricsAvailable()) {
+            setupButton(header, iosLyrics, R.drawable.picked_now_bar_lyrics, 40) { openLyrics() }
+            iosLyrics.contentDescription = context.getString(R.string.picked_now_bar_lyrics)
+        }
         setupButton(header, iosOpen, R.drawable.picked_now_bar_open, 40) { openPlayer() }
         iosOpen.contentDescription = context.getString(R.string.picked_now_bar_open)
         iosPanel.addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
@@ -720,6 +735,27 @@ class NowBarView(
      * Opens the app's player once the device is unlocked. The large player closes first so
      * fingerprint unlock is back on for the unlock this asks for.
      */
+    // A function, not a property: the panels are built while the view is constructed.
+    private fun lyricsAvailable(): Boolean =
+        context.packageManager.resolveActivity(lyricsIntent(), 0) != null
+
+    private fun lyricsIntent(): Intent =
+        Intent(LYRICS_ACTION)
+            .setPackage(LYRICS_PACKAGE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    /** Full-screen lyrics for this player; shows over the lock screen without unlocking. */
+    private fun openLyrics() {
+        val c = controller ?: return
+        setExpanded(false, animate = false)
+        val intent = lyricsIntent().putExtra("package", c.packageName)
+        try {
+            context.startActivityAsUser(intent, UserHandle.CURRENT)
+        } catch (e: RuntimeException) {
+            android.util.Log.w("NowBarView", "Can't open lyrics", e)
+        }
+    }
+
     private fun openPlayer() {
         val c = controller ?: return
         setExpanded(false, animate = false)
@@ -1482,6 +1518,9 @@ class NowBarView(
             .toInt()
 
     companion object {
+        private const val LYRICS_ACTION = "com.mikupicked.lyrics.SHOW"
+        private const val LYRICS_PACKAGE = "com.mikupicked.lyrics"
+
         private const val TAG = "NowBarView"
         private const val NOW_BAR_KEY = "system:" + Settings.System.NOW_BAR_ENABLED
         private const val NOW_BAR_STYLE_KEY = "system:" + Settings.System.NOW_BAR_STYLE
