@@ -1023,6 +1023,19 @@ public final class InputManager {
     }
 
     /**
+     * [PenguinOS] Creates a mouse of the caller's own, e.g. on a connected screen
+     * ({@link VirtualMouseConfig#getAssociatedDisplayId}), for DeX's touchpad. A system API on
+     * Android 17; hidden here.
+     *
+     * @hide
+     */
+    @RequiresPermission(Manifest.permission.INJECT_EVENTS)
+    @NonNull
+    public VirtualMouse createVirtualMouse(@NonNull VirtualMouseConfig config) {
+        return mGlobal.createVirtualMouse(config);
+    }
+
+    /**
      * Injects an input event into the event system on behalf of an application.
      * The synchronization mode determines whether the method blocks while waiting for
      * input injection to proceed.

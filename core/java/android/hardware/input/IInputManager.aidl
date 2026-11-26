@@ -35,6 +35,7 @@ import android.hardware.input.IVirtualInputDevice;
 import android.hardware.input.KeyboardLayoutSelectionResult;
 import android.hardware.input.TouchCalibration;
 import android.hardware.input.VirtualKeyboardConfig;
+import android.hardware.input.VirtualMouseConfig;
 import android.os.CombinedVibration;
 import android.hardware.input.IInputSensorEventListener;
 import android.hardware.input.IKeyEventActivityListener;
@@ -90,6 +91,11 @@ interface IInputManager {
     @EnforcePermission(anyOf = {"INJECT_KEY_EVENTS", "INJECT_EVENTS"})
     IVirtualInputDevice createVirtualKeyboard(in IBinder token,
             in VirtualKeyboardConfig config);
+
+    // [PenguinOS] DeX's touchpad: a mouse on a connected screen (InputManager.createVirtualMouse,
+    // a system API on Android 17).
+    @EnforcePermission("INJECT_EVENTS")
+    IVirtualInputDevice createVirtualMouse(in IBinder token, in VirtualMouseConfig config);
 
     // Injects an input event into the system. The caller must have the INJECT_EVENTS permission.
     // The caller can target windows owned by a certain UID by providing a valid UID, or by

@@ -1088,6 +1088,29 @@ public class InputManagerService extends IInputManager.Stub
         return createVirtualKeyboardInternal(token, config);
     }
 
+    // [PenguinOS] DeX's touchpad (InputManager.createVirtualMouse)
+    @NonNull
+    @Override
+    @EnforcePermission(Manifest.permission.INJECT_EVENTS)
+    public IVirtualInputDevice createVirtualMouse(@NonNull IBinder token,
+            @NonNull VirtualMouseConfig config) {
+        super.createVirtualMouse_enforcePermission();
+
+        int displayId = config.getAssociatedDisplayId();
+        if (displayId != Display.INVALID_DISPLAY && displayId != Display.DEFAULT_DISPLAY) {
+            DisplayInfo displayInfo = mDisplayManagerInternal.getDisplayInfo(displayId);
+            int callingUid = Binder.getCallingUid();
+            // As for a keyboard: only the display's owner or the system may name a display.
+            if (displayInfo == null || (callingUid != displayInfo.ownerUid
+                    && callingUid != Process.SYSTEM_UID && callingUid != 0)) {
+                throw new SecurityException(
+                        "Explicit display association requires caller to own the display");
+            }
+        }
+        return mVirtualInputDeviceController.createMouse(config.getInputDeviceName(),
+                config.getVendorId(), config.getProductId(), token, displayId);
+    }
+
     @Override // Binder call
     public VerifiedInputEvent verifyInputEvent(@NonNull InputEvent event) {
         Objects.requireNonNull(event, "event must not be null");
