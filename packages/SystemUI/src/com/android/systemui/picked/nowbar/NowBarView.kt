@@ -716,11 +716,22 @@ class NowBarView(
                 downY = ev.y
                 swiping = false
                 folding = false
+                // The shade window intercepts every vertical drag on the lock screen before we
+                // see it (LockscreenShadeTransitionController drags the shade down, the panel
+                // swipes up to the bouncer), so the fold swipe never reached the pill. Hold the
+                // gesture from the start and give it back below if it isn't a fold.
+                if (canFold) parent?.requestDisallowInterceptTouchEvent(true)
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = ev.x - downX
                 val dy = ev.y - downY
                 if (canFold && abs(dy) > touchSlop && abs(dy) > abs(dx) * 1.5f) {
+                    if ((dy > 0) == LockscreenArt.folded) {
+                        // Down while folded or up while unfolded: not ours, so the shade pulls
+                        // down or the bouncer comes up as usual.
+                        parent?.requestDisallowInterceptTouchEvent(false)
+                        return false
+                    }
                     resetPress()
                     folding = true
                     parent?.requestDisallowInterceptTouchEvent(true)
