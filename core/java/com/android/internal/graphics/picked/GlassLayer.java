@@ -61,11 +61,19 @@ public final class GlassLayer {
     public static final String LOCKSCREEN_SHORTCUTS = "lockscreen_shortcuts";
     public static final String SETTINGS_CARDS = "settings_cards";
     public static final String INSTALLER_DIALOGS = "installer_dialogs";
+    public static final String SLIDERS = "sliders";
+    public static final String BUTTONS = "buttons";
 
     private static final String[] SURFACES = {
         TOASTS, DIALOGS, POWER_MENU, VOLUME, STATUS_BAR_CHIPS, LOCKSCREEN_SHORTCUTS,
-        SETTINGS_CARDS, INSTALLER_DIALOGS,
+        SETTINGS_CARDS, INSTALLER_DIALOGS, SLIDERS, BUTTONS,
     };
+
+    /** See {@link View.PickedDrawDecoration#SKIP_DRAW}. */
+    static final int SKIP_DRAW = View.PickedDrawDecoration.SKIP_DRAW;
+
+    /** Glass Layer's default button tint. */
+    private static final float BUTTON_TINT = 0.60f;
 
     /** Glass Layer's default blur radius, 12 dp. */
     public static final int DEFAULT_BLUR_DP = 12;
@@ -124,7 +132,7 @@ public final class GlassLayer {
         ensureRegistered();
         View.PickedDrawDecoration current = view.getPickedDrawDecoration();
         if (current instanceof GlassSurface glass) {
-            glass.update(surface, tint, flags);
+            glass.update(surface, tint, flags | (glass.flags() & GlassSurface.PRESS));
             view.invalidate();
         } else {
             view.setPickedDrawDecoration(new GlassSurface(surface, tint, flags));
@@ -176,7 +184,11 @@ public final class GlassLayer {
 
     private static void attachTreeNow(View view, View root, String surface, int flags,
             TintRule rule) {
-        if (!isAttached(view) && SolidShapes.of(view.getBackground()) != null) {
+        // A dialog takes its buttons over from Glass Layer's buttons (DialogGlass does too).
+        boolean free = !isAttached(view)
+                || (view.getPickedDrawDecoration() instanceof GlassSurface g
+                        && BUTTONS.equals(g.surface()));
+        if (free && SolidShapes.of(view.getBackground()) != null) {
             float tint = rule.tintFor(view, root);
             if (!Float.isNaN(tint)) attach(view, surface, tint, flags);
         }
@@ -185,6 +197,65 @@ public final class GlassLayer {
                 attachTreeNow(group.getChildAt(i), root, surface, flags, rule);
             }
         }
+    }
+
+    // ---- Sliders and buttons everywhere in the processes Glass Layer hooks.
+
+    private static final int PROCESS_UNKNOWN = 0;
+    private static final int PROCESS_OFF = 1;
+    private static final int PROCESS_APP = 2;
+    private static final int PROCESS_SYSTEMUI = 3;
+    private static int sProcess = PROCESS_UNKNOWN;
+    private static final android.util.ArrayMap<Class<?>, Boolean> sMaterialSliders =
+            new android.util.ArrayMap<>();
+
+    /** Called by View.dispatchAttachedToWindow: sliders and buttons become Glass Layer's. */
+    public static void onViewAttached(@NonNull View view) {
+        if (sProcess == PROCESS_OFF) return;
+        if (sProcess == PROCESS_UNKNOWN) {
+            String pkg = ActivityThread.currentPackageName();
+            if (pkg == null) return;
+            switch (pkg) {
+                case "com.android.systemui" -> sProcess = PROCESS_SYSTEMUI;
+                case "com.android.settings", "com.android.packageinstaller",
+                        "com.google.android.packageinstaller" -> sProcess = PROCESS_APP;
+                default -> sProcess = PROCESS_OFF;
+            }
+            if (sProcess == PROCESS_OFF) return;
+        }
+        if (view.getPickedDrawDecoration() != null) return;
+        Class<?> type = view.getClass();
+        if (type == android.widget.SeekBar.class) {
+            ensureRegistered();
+            view.setPickedDrawDecoration(new GlassSlider(false));
+        } else if (isMaterialSlider(type)) {
+            ensureRegistered();
+            view.setPickedDrawDecoration(new GlassSlider(true));
+        } else if ((view instanceof android.widget.Button
+                        || view instanceof android.widget.ImageButton)
+                && !(view instanceof android.widget.CompoundButton)
+                // The bouncer's PIN keys have their own Liquid Glass (PinKeyGlass).
+                && !type.getName().startsWith("com.android.keyguard.")) {
+            // Live glass over what's behind SystemUI's windows; in apps' opaque windows a
+            // static tint, rim and sheen, as the module does there.
+            attach(view, BUTTONS, BUTTON_TINT, GlassSurface.RIM_ON_TOP | GlassSurface.PRESS
+                    | GlassSurface.OUTLINE_FILL
+                    | (sProcess == PROCESS_SYSTEMUI ? GlassSurface.LIVE : 0));
+        }
+    }
+
+    private static boolean isMaterialSlider(Class<?> type) {
+        Boolean known = sMaterialSliders.get(type);
+        if (known != null) return known;
+        boolean found = false;
+        for (Class<?> c = type; c != null && c != View.class; c = c.getSuperclass()) {
+            if (GlassSlider.MATERIAL_SLIDER.equals(c.getName())) {
+                found = true;
+                break;
+            }
+        }
+        sMaterialSliders.put(type, found);
+        return found;
     }
 
     /** Glass Layer's default installer dialog tint and its DialogGlass button tints. */

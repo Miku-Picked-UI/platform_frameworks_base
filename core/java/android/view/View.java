@@ -23268,6 +23268,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.P)
     void dispatchAttachedToWindow(AttachInfo info, int visibility) {
         mAttachInfo = info;
+        // Miku-Picked UI: Glass Layer sliders and buttons (SystemUI, Settings, installer only).
+        com.android.internal.graphics.picked.GlassLayer.onViewAttached(this);
         if (mOverlay != null) {
             mOverlay.getOverlayView().dispatchAttachedToWindow(info, visibility);
         }
@@ -25257,7 +25259,12 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             return;
         }
         final int token = decoration.onPreDraw(this, canvas);
-        drawUndecorated(canvas);
+        if ((token & PickedDrawDecoration.SKIP_DRAW) == 0) {
+            drawUndecorated(canvas);
+        } else {
+            // The decoration drew the view itself (a Glass Layer slider).
+            mPrivateFlags = (mPrivateFlags & ~PFLAG_DIRTY_MASK) | PFLAG_DRAWN;
+        }
         decoration.onPostDraw(this, canvas, token);
     }
 
@@ -25267,11 +25274,17 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @hide
      */
     public interface PickedDrawDecoration {
+        /** A token bit from {@link #onPreDraw}: the decoration drew the view, skip its own draw. */
+        int SKIP_DRAW = 1 << 30;
+
         /** Called before the background; returns a token handed to {@link #onPostDraw}. */
         int onPreDraw(@NonNull View view, @NonNull Canvas canvas);
 
         /** Called after the foreground and focus highlight. */
         void onPostDraw(@NonNull View view, @NonNull Canvas canvas, int token);
+
+        /** Called when the view's touch hotspot moves (see drawableHotspotChanged). */
+        default void onHotspotChanged(float x, float y) {}
     }
 
     private PickedDrawDecoration mPickedDrawDecoration;
@@ -26360,6 +26373,9 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     @CallSuper
     public void drawableHotspotChanged(float x, float y) {
+        if (mPickedDrawDecoration != null) {
+            mPickedDrawDecoration.onHotspotChanged(x, y);
+        }
         if (mBackground != null) {
             mBackground.setHotspot(x, y);
         }

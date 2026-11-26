@@ -42,14 +42,25 @@ public final class GlassSurface implements View.PickedDrawDecoration {
      * row, with a faint rim and no sheen (Glass Layer's GlassRim.drawSegment).
      */
     public static final int SEGMENTED = 1 << 3;
+    /**
+     * Glass Layer's button press: the button grows 2 dp on a soft spring while held and a light
+     * follows the finger (ButtonGlass / PressSpring / PressHighlight).
+     */
+    public static final int PRESS = 1 << 4;
+    /**
+     * Also take filled backgrounds that aren't a GradientDrawable (MaterialButton's
+     * MaterialShapeDrawable) by their tint and round outline.
+     */
+    public static final int OUTLINE_FILL = 1 << 5;
 
     private static final int DRAWN = 1;
+    private static final int PRESSED = 1 << 1;
 
     private String mSurface;
     private float mTint;
     private int mFlags;
 
-    private GradientDrawable mTinted;
+    private android.graphics.drawable.Drawable mTinted;
     private int mStockAlpha = -1;
     private int mAppliedAlpha = -1;
     private BackgroundBlurDrawable mBlur;
@@ -62,6 +73,14 @@ public final class GlassSurface implements View.PickedDrawDecoration {
         update(surface, tint, flags);
     }
 
+    String surface() {
+        return mSurface;
+    }
+
+    int flags() {
+        return mFlags;
+    }
+
     void update(String surface, float tint, int flags) {
         mSurface = surface;
         mTint = tint;
@@ -71,8 +90,14 @@ public final class GlassSurface implements View.PickedDrawDecoration {
 
     @Override
     public int onPreDraw(@NonNull View view, @NonNull Canvas canvas) {
-        GradientDrawable shape =
-                GlassLayer.isActive(mSurface) ? SolidShapes.of(view.getBackground()) : null;
+        int pressed = beginPress(view, canvas);
+        return glass(view, canvas) | pressed;
+    }
+
+    private int glass(View view, Canvas canvas) {
+        boolean active = GlassLayer.isActive(mSurface);
+        android.graphics.drawable.Drawable shape = active ? SolidShapes.of(view.getBackground()) : null;
+        if (shape == null && active && (mFlags & OUTLINE_FILL) != 0) shape = outlineFill(view);
         if (shape == null) {
             release(view);
             return 0;
@@ -105,8 +130,129 @@ public final class GlassSurface implements View.PickedDrawDecoration {
 
     @Override
     public void onPostDraw(@NonNull View view, @NonNull Canvas canvas, int token) {
-        if (token != DRAWN || (mFlags & RIM_ON_TOP) == 0 || (mFlags & NO_RIM) != 0) return;
-        drawRim(canvas, view.getResources().getDisplayMetrics().density, mStockAlpha / 255f);
+        if ((token & DRAWN) != 0 && (mFlags & RIM_ON_TOP) != 0 && (mFlags & NO_RIM) == 0) {
+            drawRim(canvas, view.getResources().getDisplayMetrics().density, mStockAlpha / 255f);
+        }
+        if ((token & PRESSED) != 0) endPress(view, canvas, (token & DRAWN) != 0);
+    }
+
+    @Override
+    public void onHotspotChanged(float x, float y) {
+        mPressX = x;
+        mPressY = y;
+    }
+
+    // ---- Glass Layer's button press (PressSpring 300 stiffness / 0.5 damping, 2 dp growth,
+    // PressHighlight: an 8 % wash and a 15 % light around the finger, added on top).
+
+    private static final float PRESS_GROW_DP = 2f;
+    private static final float STIFFNESS = 300f;
+    private static final float DAMPING_RATIO = 0.5f;
+    private static final float SUB_STEP_S = 0.004f;
+    private static final long MAX_STEP_MS = 64L;
+    private static final float PRESS_SETTLED = 0.001f;
+    private static final float WASH_ALPHA = 0.08f;
+    private static final float SPOT_ALPHA = 0.15f;
+
+    private float mPress;
+    private float mPressVelocity;
+    private long mPressAt;
+    private float mPressX = Float.NaN;
+    private float mPressY = Float.NaN;
+    private int mPressSave = -1;
+    private final Paint mWash = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mSpot = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path mPressPath = new Path();
+
+    private int beginPress(View view, Canvas canvas) {
+        if ((mFlags & PRESS) == 0) return 0;
+        boolean active = GlassLayer.isActive(GlassLayer.BUTTONS);
+        float goal = active && view.isEnabled() && view.isPressed() ? 1f : 0f;
+        long now = android.os.SystemClock.uptimeMillis();
+        float elapsed = mPressAt == 0L ? 0.016f
+                : Math.max(1L, Math.min(MAX_STEP_MS, now - mPressAt)) / 1000f;
+        mPressAt = now;
+        float damping = 2f * DAMPING_RATIO * (float) Math.sqrt(STIFFNESS);
+        while (elapsed > 0f) {
+            float step = Math.min(elapsed, SUB_STEP_S);
+            float force = -STIFFNESS * (mPress - goal) - damping * mPressVelocity;
+            mPressVelocity += force * step;
+            mPress += mPressVelocity * step;
+            elapsed -= step;
+        }
+        if (Math.abs(mPress - goal) < PRESS_SETTLED && Math.abs(mPressVelocity) < PRESS_SETTLED) {
+            mPress = goal;
+            mPressVelocity = 0f;
+        } else {
+            view.postInvalidateOnAnimation();
+        }
+        if (mPress == 0f || view.getWidth() <= 0 || view.getHeight() <= 0) return 0;
+        float density = view.getResources().getDisplayMetrics().density;
+        float scale = 1f + PRESS_GROW_DP * density / view.getHeight()
+                * Math.max(0f, Math.min(1f, mPress));
+        mPressSave = canvas.save();
+        canvas.scale(scale, scale, view.getScrollX() + view.getWidth() / 2f,
+                view.getScrollY() + view.getHeight() / 2f);
+        return PRESSED;
+    }
+
+    private void endPress(View view, Canvas canvas, boolean shaped) {
+        float press = Math.max(0f, mPress);
+        if (press > 0f) {
+            float left = view.getScrollX();
+            float top = view.getScrollY();
+            float width = view.getWidth();
+            float height = view.getHeight();
+            mPressPath.rewind();
+            if (shaped) {
+                mPressPath.addRoundRect(mBounds.left, mBounds.top, mBounds.right, mBounds.bottom,
+                        mRadii, Path.Direction.CW);
+            } else {
+                float r = Math.min(width, height) / 2f;
+                mPressPath.addRoundRect(left, top, left + width, top + height, r, r,
+                        Path.Direction.CW);
+            }
+            int count = canvas.save();
+            canvas.clipPath(mPressPath);
+            mWash.setBlendMode(android.graphics.BlendMode.PLUS);
+            mWash.setColor(white(WASH_ALPHA * press));
+            canvas.drawRect(left, top, left + width, top + height, mWash);
+            float x = Float.isNaN(mPressX) ? width / 2f : Math.max(0f, Math.min(width, mPressX));
+            float y = Float.isNaN(mPressY) ? height / 2f : Math.max(0f, Math.min(height, mPressY));
+            float radius = Math.min(width, height) * 1.5f;
+            int spot = white(SPOT_ALPHA * press);
+            mSpot.setBlendMode(android.graphics.BlendMode.PLUS);
+            mSpot.setShader(new android.graphics.RadialGradient(left + x, top + y, radius,
+                    new int[] {spot, spot, Color.TRANSPARENT}, new float[] {0f, 0.5f, 1f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawRect(left, top, left + width, top + height, mSpot);
+            canvas.restoreToCount(count);
+        }
+        if (mPressSave >= 0) canvas.restoreToCount(mPressSave);
+        mPressSave = -1;
+    }
+
+    // A filled background that isn't a GradientDrawable (MaterialButton): its tint is the fill
+    // and its outline the shape.
+    private final android.graphics.Outline mOutline = new android.graphics.Outline();
+    private final Rect mOutlineRect = new Rect();
+    private android.graphics.drawable.Drawable mOutlineDrawable;
+    private float mOutlineRadius;
+
+    private android.graphics.drawable.Drawable outlineFill(View view) {
+        android.graphics.drawable.Drawable background = view.getBackground();
+        android.content.res.ColorStateList tint = view.getBackgroundTintList();
+        if (background == null || tint == null) return null;
+        if (Color.alpha(tint.getColorForState(view.getDrawableState(), tint.getDefaultColor()))
+                == 0) {
+            return null;
+        }
+        mOutline.setEmpty();
+        background.getOutline(mOutline);
+        if (!mOutline.getRect(mOutlineRect) || mOutlineRect.isEmpty()) return null;
+        mOutlineRadius = Math.max(0f, mOutline.getRadius());
+        mOutlineDrawable = background;
+        return background;
     }
 
     /** Gives the background its own opacity back and takes the blur region away. */
@@ -124,7 +270,15 @@ public final class GlassSurface implements View.PickedDrawDecoration {
         mAppliedAlpha = -1;
     }
 
-    private boolean resolveGeometry(View view, GradientDrawable shape) {
+    private boolean resolveGeometry(View view, android.graphics.drawable.Drawable fill) {
+        if (!(fill instanceof GradientDrawable shape)) {
+            if (fill != mOutlineDrawable) return false;
+            mBounds.set(mOutlineRect);
+            mBounds.offset(view.getScrollX(), view.getScrollY());
+            java.util.Arrays.fill(mRadii, Math.min(mOutlineRadius,
+                    Math.min(mBounds.width(), mBounds.height()) / 2f));
+            return true;
+        }
         Rect b = shape.getBounds();
         if (b.isEmpty()) b = view.getBackground().getBounds();
         if (b.isEmpty()) return false;
