@@ -26,6 +26,8 @@ import javax.inject.Inject
  *  - under-display sensor higher up (lower middle, like the Galaxy S21 at ~76%): at the bottom
  *    of the screen, above the indication text;
  *  - no under-display sensor: at the bottom, above the indication text and the lock icon.
+ * The iOS player (now_bar_layout = 1) is a tall card, so with an under-display sensor it always
+ * sits right above the fingerprint icon, never over the sensor.
  * The lockscreen notifications end above it while it shows (see
  * NotificationStackScrollLayoutSection).
  */
@@ -76,6 +78,7 @@ constructor(
                 ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
                 ConstraintLayout.LayoutParams.WRAP_CONTENT,
             )
+            it.onLayoutChanged = { replaceIfMoved() }
             constraintLayout.addView(it)
         }
         layout = constraintLayout
@@ -127,6 +130,7 @@ constructor(
 
     override fun removeViews(constraintLayout: ConstraintLayout) {
         authController.removeCallback(authCallback)
+        nowBar?.onLayoutChanged = null
         nowBar?.let { (it.parent as? ViewGroup)?.removeView(it) }
         barrier?.let { (it.parent as? ViewGroup)?.removeView(it) }
         nowBar = null
@@ -136,6 +140,7 @@ constructor(
 
     private fun currentPlacement(): Placement {
         if (!authController.isUdfpsSupported) return Placement.BOTTOM_NO_UDFPS
+        if (nowBar?.iosLayout == true) return Placement.ABOVE_FINGERPRINT
         val sensor = authController.udfpsLocation ?: authController.fingerprintSensorLocation
             ?: return Placement.ABOVE_FINGERPRINT
         val bounds = context.getSystemService(WindowManager::class.java)
@@ -149,7 +154,10 @@ constructor(
         }
     }
 
-    /** Re-applies the constraints when the sensor turns out to be somewhere else. */
+    /**
+     * Re-applies the constraints when the sensor turns out to be somewhere else, or the bar
+     * switched between the pill and the iOS player.
+     */
     private fun replaceIfMoved() {
         val root = layout ?: return
         if (currentPlacement() == placement) return

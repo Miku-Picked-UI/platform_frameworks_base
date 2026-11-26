@@ -14,6 +14,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Outline
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaMetadata
@@ -64,6 +65,7 @@ import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.tuner.TunerService
 import java.lang.ref.WeakReference
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Miku-Picked UI: Now Bar, a pill on the lockscreen in the style of Samsung's One UI Now Bar.
@@ -80,6 +82,12 @@ import kotlin.math.abs
  *  - ongoing live notifications (timers, stopwatches, calls, navigation, recorders), with their
  *    chronometer; tapping one opens it (after unlocking).
  * A page that appears (music starts, flashlight turned on, timer started) is brought to front.
+ *
+ * With Settings.System now_bar_layout = 1 the media page is instead a card like the player on
+ * iOS' lock screen (art, song, a scrubber with elapsed and remaining time, large controls and
+ * a volume bar), placed above an under-display fingerprint sensor; tapping its art opens the
+ * app, or fills the lock screen with the art when iOS-style media art is on (LockscreenArt).
+ * The other pages stay pills.
  *
  * The background is liquid glass, frosted glass or black (Settings.System.NOW_BAR_STYLE, see
  * [NowBarBackground]). The bar hides on AOD, while there is nothing to show, and when
@@ -140,6 +148,28 @@ class NowBarView(
     private val activityChrono = Chronometer(context)
     private val activityAction = ImageButton(context)
 
+    // iOS lock screen player (now_bar_layout = 1)
+    private val iosPanel = LinearLayout(context)
+    private val iosArt = ImageView(context)
+    private val iosTitle = TextView(context)
+    private val iosArtist = TextView(context)
+    private val iosOpen = ImageButton(context)
+    private val iosScrubber = NowBarScrubber(context)
+    private val iosElapsed = TextView(context)
+    private val iosRemaining = TextView(context)
+    private val iosPrev = ImageButton(context)
+    private val iosPlayPause = ImageButton(context)
+    private val iosNext = ImageButton(context)
+    private val iosVolumeRow = LinearLayout(context)
+    private val iosVolume = NowBarScrubber(context)
+
+    /** now_bar_layout: the media page is the iOS player instead of the pill. */
+    var iosLayout = false
+        private set
+
+    /** Called when [iosLayout] changes, so NowBarSection can move the bar. */
+    var onLayoutChanged: (() -> Unit)? = null
+
     private val dots = LinearLayout(context)
 
     private var controller: MediaController? = null
@@ -175,7 +205,9 @@ class NowBarView(
     private val progressUpdater = object : Runnable {
         override fun run() {
             updateProgress()
-            if (expanded && visibility == VISIBLE && isPlaying(controller?.playbackState)) {
+            // The iOS player also follows the volume, so it keeps ticking while paused.
+            if (visibility == VISIBLE &&
+                (iosShowing() || (expanded && isPlaying(controller?.playbackState)))) {
                 mainHandler.postDelayed(this, PROGRESS_INTERVAL_MS)
             }
         }
@@ -221,8 +253,10 @@ class NowBarView(
         buildCompactRow()
         buildExpandedPanel()
         buildActivityRow()
+        buildIosPanel()
         expandedPanel.visibility = GONE
         activityRow.visibility = GONE
+        iosPanel.visibility = GONE
         dots.apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER
@@ -232,6 +266,7 @@ class NowBarView(
         addView(compactRow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(activityRow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(expandedPanel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(iosPanel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(dots, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
@@ -448,6 +483,157 @@ class NowBarView(
         }
     }
 
+    /** The iOS lock screen player: art and song, scrubber, controls, volume. */
+    private fun buildIosPanel() {
+        iosPanel.apply {
+            orientation = VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(14))
+        }
+
+        val header = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        iosArt.apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            clipToOutline = true
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setRoundRect(0, 0, view.width, view.height, dp(10).toFloat())
+                }
+            }
+            setBackgroundColor(Color.argb(0x40, 0xFF, 0xFF, 0xFF))
+            setOnClickListener {
+                // iOS-style media art on: the art fills the lock screen, as on iOS
+                if (LockscreenArt.expandEnabled) {
+                    performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    LockscreenArt.toggleExpanded()
+                } else {
+                    openPlayer()
+                }
+            }
+        }
+        header.addView(iosArt, LayoutParams(dp(56), dp(56)))
+        val texts = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(dp(14), 0, dp(4), 0)
+            setOnClickListener { openPlayer() }
+        }
+        styleTitle(iosTitle, 15f)
+        styleSubtitle(iosArtist, 14f)
+        texts.addView(iosTitle)
+        texts.addView(iosArtist)
+        header.addView(texts, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        setupButton(header, iosOpen, R.drawable.picked_now_bar_open, 40) { openPlayer() }
+        iosOpen.contentDescription = context.getString(R.string.picked_now_bar_open)
+        iosPanel.addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
+        iosScrubber.listener = object : NowBarScrubber.Listener {
+            override fun onStart() {
+                userSeeking = true
+            }
+
+            override fun onChange(value: Float) = showIosTimes(value.toLong(), iosScrubber.max.toLong())
+
+            override fun onStop(value: Float) {
+                userSeeking = false
+                controller?.transportControls?.seekTo(value.toLong())
+            }
+        }
+        val scrubLp = LayoutParams(LayoutParams.MATCH_PARENT, dp(24))
+        scrubLp.topMargin = dp(12)
+        iosPanel.addView(iosScrubber, scrubLp)
+
+        val times = FrameLayout(context)
+        listOf(iosElapsed, iosRemaining).forEach {
+            it.setTextColor(Color.argb(0x99, 0xFF, 0xFF, 0xFF))
+            it.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            it.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            it.fontFeatureSettings = "tnum"
+        }
+        times.addView(iosElapsed, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.START))
+        times.addView(iosRemaining, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.END))
+        iosPanel.addView(times, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
+        // Large glyphs without a circle, spread out, like iOS.
+        val controls = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        setupButton(controls, iosPrev, R.drawable.picked_now_bar_ios_back, 60) { skipPrevious() }
+        setupButton(controls, iosPlayPause, R.drawable.picked_now_bar_play, 60) { togglePlay() }
+        setupButton(controls, iosNext, R.drawable.picked_now_bar_ios_forward, 60) { skipNext() }
+        iosPrev.contentDescription = context.getString(R.string.picked_now_bar_previous)
+        iosNext.contentDescription = context.getString(R.string.picked_now_bar_next)
+        listOf(iosPrev, iosPlayPause, iosNext).forEach {
+            it.scaleX = IOS_ICON_SCALE
+            it.scaleY = IOS_ICON_SCALE
+        }
+        (iosPlayPause.layoutParams as LayoutParams).setMargins(dp(36), 0, dp(36), 0)
+        iosPanel.addView(controls, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
+        // Volume: the session's own (so a cast session moves the cast device's volume).
+        iosVolumeRow.apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val low = ImageView(context).apply {
+            setImageResource(R.drawable.ic_volume_media_low)
+            setColorFilter(Color.argb(0x99, 0xFF, 0xFF, 0xFF))
+        }
+        val high = ImageView(context).apply {
+            setImageResource(R.drawable.ic_volume_media)
+            setColorFilter(Color.argb(0x99, 0xFF, 0xFF, 0xFF))
+        }
+        iosVolumeRow.addView(low, LayoutParams(dp(16), dp(16)))
+        val volLp = LayoutParams(0, dp(24), 1f)
+        volLp.setMargins(dp(10), 0, dp(10), 0)
+        iosVolumeRow.addView(iosVolume, volLp)
+        iosVolumeRow.addView(high, LayoutParams(dp(16), dp(16)))
+        iosVolume.listener = object : NowBarScrubber.Listener {
+            override fun onChange(value: Float) {
+                controller?.setVolumeTo(value.roundToInt(), 0)
+            }
+
+            override fun onStop(value: Float) {
+                controller?.setVolumeTo(value.roundToInt(), 0)
+            }
+        }
+        val volRowLp = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+        volRowLp.topMargin = dp(2)
+        iosPanel.addView(iosVolumeRow, volRowLp)
+    }
+
+    private fun iosShowing() = iosLayout && currentPage == Page.Media && iosPanel.visibility == VISIBLE
+
+    private fun showIosTimes(position: Long, duration: Long) {
+        iosElapsed.text = formatTime(position)
+        iosRemaining.text = "-" + formatTime((duration - position).coerceAtLeast(0L))
+    }
+
+    private fun updateIosVolume() {
+        if (iosVolume.dragging) return
+        val info = controller?.playbackInfo
+        if (info == null || info.volumeControl == android.media.VolumeProvider.VOLUME_CONTROL_FIXED ||
+            info.maxVolume <= 0) {
+            iosVolumeRow.visibility = GONE
+            return
+        }
+        iosVolumeRow.visibility = VISIBLE
+        iosVolume.max = info.maxVolume.toFloat()
+        iosVolume.value = info.currentVolume.toFloat()
+    }
+
+    private fun hits(view: View, ev: MotionEvent): Boolean {
+        if (!view.isShown) return false
+        val r = Rect()
+        return view.getGlobalVisibleRect(r) && r.contains(ev.rawX.toInt(), ev.rawY.toInt())
+    }
+
     private fun circleClip(view: ImageView) {
         view.scaleType = ImageView.ScaleType.CENTER_CROP
         view.clipToOutline = true
@@ -495,7 +681,11 @@ class NowBarView(
 
     /** A quick squeeze and springy release, for buttons. */
     private fun bounce(view: View) {
-        val base = if (view === bigPrev || view === bigNext) BIG_ICON_SCALE else 1f
+        val base = when {
+            view === bigPrev || view === bigNext -> BIG_ICON_SCALE
+            view === iosPrev || view === iosPlayPause || view === iosNext -> IOS_ICON_SCALE
+            else -> 1f
+        }
         view.animate().cancel()
         view.animate()
             .scaleX(base * 0.82f).scaleY(base * 0.82f)
@@ -642,6 +832,8 @@ class NowBarView(
             MotionEvent.ACTION_DOWN -> {
                 // Not while it pops in or out, or mid page swipe.
                 if (!shown || swiping || alpha < 1f || showSpringsRunning()) return
+                // Not while sliding the iOS player's scrubber or volume
+                if (hits(iosScrubber, ev) || hits(iosVolumeRow, ev)) return
                 pressing = true
                 pressDownX = ev.rawX
                 pressDownY = ev.rawY
@@ -651,7 +843,7 @@ class NowBarView(
                 if (!pressing || swiping) return
                 val dx = ev.rawX - pressDownX
                 val dy = ev.rawY - pressDownY
-                val reach = dp(if (expanded) 6 else PRESS_REACH_DP).toFloat()
+                val reach = dp(if (expanded || iosShowing()) 6 else PRESS_REACH_DP).toFloat()
                 val dist = kotlin.math.hypot(dx, dy)
                 val pull =
                     if (dist == 0f) 0f else reach * (1f - 1f / (1f + dist / (reach * 3f))) / dist
@@ -698,7 +890,7 @@ class NowBarView(
         val oy = pressLeanY.value
         val stretchX = abs(ox) / reach * PRESS_STRETCH
         val stretchY = abs(oy) / reach * PRESS_STRETCH
-        val lift = if (expanded) PRESS_LIFT_EXPANDED else PRESS_LIFT
+        val lift = if (expanded || iosShowing()) PRESS_LIFT_EXPANDED else PRESS_LIFT
         scaleX = 1f + lift * l + stretchX - stretchY * 0.5f
         scaleY = 1f + lift * l + stretchY - stretchX * 0.5f
         translationX = ox
@@ -708,7 +900,9 @@ class NowBarView(
     // endregion
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        val canFold = !expanded && currentPage == Page.Media && LockscreenArt.foldEnabled
+        // Folding is a pill gesture; on the iOS card a vertical swipe stays the lock screen's.
+        val canFold =
+            !expanded && !iosLayout && currentPage == Page.Media && LockscreenArt.foldEnabled
         if (expanded || (pages.size < 2 && !canFold)) return false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -838,7 +1032,7 @@ class NowBarView(
         attached = true
         backgroundDrawer.onAttached()
         viewTreeObserver.addOnPreDrawListener(preDrawListener)
-        tunerService.addTunable(this, NOW_BAR_KEY, NOW_BAR_STYLE_KEY)
+        tunerService.addTunable(this, NOW_BAR_KEY, NOW_BAR_STYLE_KEY, NOW_BAR_LAYOUT_KEY)
         statusBarStateController.addCallback(stateListener)
         dozing = statusBarStateController.isDozing
         activities.addListener(activitiesListener)
@@ -873,6 +1067,15 @@ class NowBarView(
             }
             NOW_BAR_STYLE_KEY -> {
                 backgroundDrawer.setStyle(newValue?.toIntOrNull() ?: NowBarBackground.STYLE_LIQUID)
+            }
+            NOW_BAR_LAYOUT_KEY -> {
+                val ios = newValue?.toIntOrNull() == LAYOUT_IOS
+                if (ios != iosLayout) {
+                    iosLayout = ios
+                    if (ios) setExpanded(false, animate = false)
+                    refresh()
+                    onLayoutChanged?.invoke()
+                }
             }
         }
     }
@@ -1083,9 +1286,22 @@ class NowBarView(
     }
 
     private fun showRows(media: Boolean) {
+        val ios = media && iosLayout
         activityRow.visibility = if (media) GONE else VISIBLE
-        compactRow.visibility = if (media && !expanded) VISIBLE else GONE
-        expandedPanel.visibility = if (media && expanded) VISIBLE else GONE
+        compactRow.visibility = if (media && !expanded && !ios) VISIBLE else GONE
+        expandedPanel.visibility = if (media && expanded && !ios) VISIBLE else GONE
+        iosPanel.visibility = if (ios) VISIBLE else GONE
+        val radius = dp(
+            when {
+                ios -> IOS_CORNER_DP
+                expanded -> 28
+                else -> 32
+            }
+        ).toFloat()
+        if (radius != cornerRadius) {
+            cornerRadius = radius
+            invalidate()
+        }
         if (media) activityChrono.stop()
     }
 
@@ -1102,17 +1318,21 @@ class NowBarView(
             ?: metadata?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
         title.text = titleText
         bigTitle.text = titleText
+        iosTitle.text = titleText
         artist.text = artistText
         bigArtist.text = artistText
+        iosArtist.text = artistText
         val artistVisibility = if (artistText.isNullOrEmpty()) GONE else VISIBLE
         artist.visibility = artistVisibility
         bigArtist.visibility = artistVisibility
+        iosArtist.visibility = artistVisibility
 
         val bitmap: Bitmap? = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         setArt(art, bitmap, dp(10))
         setArt(bigArt, bitmap, dp(24))
+        setArt(iosArt, bitmap, dp(16))
 
         val playing = isPlaying(state)
         val playIcon =
@@ -1124,16 +1344,24 @@ class NowBarView(
         playPause.contentDescription = playDesc
         bigPlayPause.setImageResource(playIcon)
         bigPlayPause.contentDescription = playDesc
+        iosPlayPause.setImageResource(playIcon)
+        iosPlayPause.contentDescription = playDesc
 
         val actions = state?.actions ?: 0L
         val canPrev = actions == 0L || (actions and PlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L
         val canNext = actions == 0L || (actions and PlaybackState.ACTION_SKIP_TO_NEXT) != 0L
-        listOf(prev, bigPrev).forEach { it.isEnabled = canPrev; it.alpha = if (canPrev) 1f else 0.4f }
-        listOf(next, bigNext).forEach { it.isEnabled = canNext; it.alpha = if (canNext) 1f else 0.4f }
+        listOf(prev, bigPrev, iosPrev).forEach {
+            it.isEnabled = canPrev
+            it.alpha = if (canPrev) 1f else 0.4f
+        }
+        listOf(next, bigNext, iosNext).forEach {
+            it.isEnabled = canNext
+            it.alpha = if (canNext) 1f else 0.4f
+        }
         openButton.visibility = VISIBLE
 
         mainHandler.removeCallbacks(progressUpdater)
-        if (expanded) progressUpdater.run()
+        if (expanded || iosShowing()) progressUpdater.run()
     }
 
     private fun bindFlashlight() {
@@ -1213,14 +1441,20 @@ class NowBarView(
         val c = controller ?: return
         val state = c.playbackState ?: return
         val duration = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        if (iosShowing()) updateIosVolume()
         if (duration <= 0L) {
             seekBar.visibility = INVISIBLE
             elapsedText.text = ""
             durationText.text = ""
+            iosScrubber.visibility = INVISIBLE
+            iosElapsed.text = ""
+            iosRemaining.text = ""
             return
         }
         seekBar.visibility = VISIBLE
         seekBar.isEnabled = (state.actions and PlaybackState.ACTION_SEEK_TO) != 0L
+        iosScrubber.visibility = VISIBLE
+        iosScrubber.seekable = seekBar.isEnabled
         var position = state.position
         if (state.state == PlaybackState.STATE_PLAYING && state.lastPositionUpdateTime > 0) {
             position += ((SystemClock.elapsedRealtime() - state.lastPositionUpdateTime) *
@@ -1231,6 +1465,9 @@ class NowBarView(
             seekBar.max = duration.toInt()
             seekBar.progress = position.toInt()
             elapsedText.text = formatTime(position)
+            iosScrubber.max = duration.toFloat()
+            iosScrubber.value = position.toFloat()
+            showIosTimes(position, duration)
         }
         durationText.text = formatTime(duration)
     }
@@ -1248,6 +1485,11 @@ class NowBarView(
         private const val TAG = "NowBarView"
         private const val NOW_BAR_KEY = "system:" + Settings.System.NOW_BAR_ENABLED
         private const val NOW_BAR_STYLE_KEY = "system:" + Settings.System.NOW_BAR_STYLE
+        /** Settings.System now_bar_layout: 0 = One UI pill (default), 1 = iOS player. */
+        private const val NOW_BAR_LAYOUT_KEY = "system:now_bar_layout"
+        private const val LAYOUT_IOS = 1
+        private const val IOS_CORNER_DP = 26
+        private const val IOS_ICON_SCALE = 1.45f
         private const val PROGRESS_INTERVAL_MS = 500L
         private const val MORPH_MS = 520L
         private const val BIG_ICON_SCALE = 1.4f
