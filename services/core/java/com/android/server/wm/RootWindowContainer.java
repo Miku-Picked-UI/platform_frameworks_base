@@ -2920,6 +2920,7 @@ public class RootWindowContainer extends WindowContainer<DisplayContent>
 
     @Override
     public void onDisplayAdded(int displayId) {
+        mWmService.updateDexGlassDisplays();
         if (DEBUG_ROOT_TASK) Slog.v(TAG, "Display added displayId=" + displayId);
         synchronized (mService.mGlobalLock) {
             final DisplayContent display = getDisplayContentOrCreate(displayId);
@@ -2941,7 +2942,8 @@ public class RootWindowContainer extends WindowContainer<DisplayContent>
         if (ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT.isTrue()) {
             displayContent.updateShouldShowSystemDecorations();
             final boolean inTopology = mWindowManager.mDisplayWindowSettings
-                    .shouldShowSystemDecorsLocked(displayContent);
+                    .shouldShowSystemDecorsLocked(displayContent)
+                    || displayContent.isDexDisplay();
             mWmService.mDisplayManagerInternal.onDisplayBelongToTopologyChanged(
                     displayContent.mDisplayId, inTopology);
         }
@@ -2961,6 +2963,7 @@ public class RootWindowContainer extends WindowContainer<DisplayContent>
 
     @Override
     public void onDisplayRemoved(int displayId) {
+        mWmService.updateDexGlassDisplays();
         if (DEBUG_ROOT_TASK) Slog.v(TAG, "Display removed displayId=" + displayId);
         if (displayId == DEFAULT_DISPLAY) {
             throw new IllegalArgumentException("Can't remove the primary display.");
@@ -3010,6 +3013,7 @@ public class RootWindowContainer extends WindowContainer<DisplayContent>
 
     @Override
     public void onDisplayChanged(int displayId) {
+        mWmService.updateDexGlassDisplays();
         if (DEBUG_ROOT_TASK) Slog.v(TAG, "Display changed displayId=" + displayId);
         synchronized (mService.mGlobalLock) {
             final DisplayContent displayContent = getDisplayContent(displayId);

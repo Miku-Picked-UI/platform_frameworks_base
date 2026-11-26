@@ -742,6 +742,9 @@ public class WindowManagerService extends IWindowManager.Stub
      */
     boolean mForceDesktopModeOnExternalDisplays;
 
+    /** [PenguinOS] DeX: connected screens get their own desktop (PickedDexSync). */
+    volatile boolean mDexEnabled;
+
     public boolean mAlwaysSeqId;
 
     boolean mDisableTransitionAnimation;
@@ -1477,6 +1480,8 @@ public class WindowManagerService extends IWindowManager.Stub
                 DEVELOPMENT_FORCE_DESKTOP_MODE_ON_EXTERNAL_DISPLAYS, 0) != 0;
         // [Miku-Picked UI] Liquid Glass settings -> renderengine properties (PenguinOS)
         PickedLiquidGlassSync.start(resolver, mH);
+        // [PenguinOS] DeX: mirror_built_in_display -> desktop experience
+        PickedDexSync.start(resolver, mH, this);
 
         final String displaySettingsPath = Settings.Global.getString(resolver,
                 DEVELOPMENT_WM_DISPLAY_SETTINGS_PATH);
@@ -7707,6 +7712,37 @@ public class WindowManagerService extends IWindowManager.Stub
         return 0;
     }
 
+    // [PenguinOS] The DeX screens' names, for renderengine to draw Liquid Glass on them always.
+    private static final String DEX_GLASS_PROPERTY = "sys.penguin.liquid_glass.dex";
+    private String mDexGlassDisplays;
+
+    void updateDexGlassDisplays() {
+        mH.post(() -> {
+            final StringBuilder names = new StringBuilder();
+            synchronized (mGlobalLock) {
+                mRoot.forAllDisplays(dc -> {
+                    final String name = dc.getDisplayInfo().name;
+                    if (!dc.isDexDisplay() || dc.isRemoving() || dc.isRemoved()
+                            || name == null || name.isEmpty()
+                            || name.indexOf('|') >= 0
+                            || names.length() + name.length() + 1
+                                    >= SystemProperties.PROP_VALUE_MAX) {
+                        return;
+                    }
+                    if (names.length() > 0) {
+                        names.append('|');
+                    }
+                    names.append(name);
+                });
+            }
+            final String value = names.toString();
+            if (!value.equals(mDexGlassDisplays)) {
+                mDexGlassDisplays = value;
+                SystemProperties.set(DEX_GLASS_PROPERTY, value);
+            }
+        });
+    }
+
     void setForceDesktopModeOnExternalDisplays(boolean forceDesktopModeOnExternalDisplays) {
         synchronized (mGlobalLock) {
             mForceDesktopModeOnExternalDisplays = forceDesktopModeOnExternalDisplays;
@@ -8063,7 +8099,8 @@ public class WindowManagerService extends IWindowManager.Stub
             if (!displayContent.isWindowingModeSupported(WINDOWING_MODE_FREEFORM)) {
                 return false;
             }
-            return displayContent.isDefaultDisplay || displayContent.allowContentModeSwitch();
+            return displayContent.isDefaultDisplay || displayContent.allowContentModeSwitch()
+                    || displayContent.isDexDisplay();
         }
     }
 

@@ -3395,6 +3395,22 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         return true;
     }
 
+    /**
+     * [PenguinOS] DeX: whether this connected or cast screen runs its own desktop. On Android 16
+     * a connected screen switches content mode (DisplayManager lets it host tasks while mirroring
+     * is off); a cast screen that shows system decorations is a desktop outright.
+     */
+    boolean isDexDisplay() {
+        if (!mWmService.mDexEnabled || isDefaultDisplay || isPrivate() || !isTrusted()) {
+            return false;
+        }
+        if (!DesktopModeHelper.canEnterDesktopMode(mWmService.mContext)) {
+            return false;
+        }
+        return (mDisplay.getFlags() & FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS) != 0
+                || (allowContentModeSwitch() && mDisplay.canHostTasks());
+    }
+
     void updateShouldShowSystemDecorations() {
         final boolean shouldShow = mDisplay.canHostTasks();
         if (allowContentModeSwitch() &&
@@ -3485,6 +3501,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
 
     @Override
     void removeImmediately() {
+        mWmService.updateDexGlassDisplays();
         mDeferredRemoval = false;
         try {
             if (DesktopExperienceFlags.ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT.isTrue()
