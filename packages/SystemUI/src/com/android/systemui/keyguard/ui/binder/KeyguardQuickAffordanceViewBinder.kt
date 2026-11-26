@@ -88,6 +88,8 @@ constructor(
         messageDisplayer: (Int) -> Unit,
     ): Binding {
         val button = view as ImageView
+        // Miku-Picked UI: Glass Layer lockscreen shortcuts.
+        com.android.systemui.picked.glasslayer.GlassLayerUi.lockscreenShortcut(view)
         val configurationBasedDimensions = MutableStateFlow(loadFromResources(view))
         val hapticsViewModel = hapticsViewModelFactory.create()
 

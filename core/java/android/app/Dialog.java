@@ -357,6 +357,10 @@ public class Dialog implements DialogInterface, Window.Callback,
 
         mShowing = true;
 
+        // Miku-Picked UI: Glass Layer installer dialogs (PackageInstaller builds against the
+        // system SDK, so the framework picks its dialogs up here).
+        com.android.internal.graphics.picked.GlassLayer.onDialogShown(mContext, mDecor);
+
         sendShowMessage();
     }
     

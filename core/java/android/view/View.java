@@ -25249,6 +25249,51 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     @CallSuper
     public void draw(@NonNull Canvas canvas) {
+        // Miku-Picked UI: Glass Layer surfaces draw their glass under, and their rim over, the
+        // view (see com.android.internal.graphics.picked.GlassLayer).
+        final PickedDrawDecoration decoration = mPickedDrawDecoration;
+        if (decoration == null) {
+            drawUndecorated(canvas);
+            return;
+        }
+        final int token = decoration.onPreDraw(this, canvas);
+        drawUndecorated(canvas);
+        decoration.onPostDraw(this, canvas, token);
+    }
+
+    /**
+     * Miku-Picked UI: draws around a view's whole {@link #draw(Canvas)}, background included.
+     *
+     * @hide
+     */
+    public interface PickedDrawDecoration {
+        /** Called before the background; returns a token handed to {@link #onPostDraw}. */
+        int onPreDraw(@NonNull View view, @NonNull Canvas canvas);
+
+        /** Called after the foreground and focus highlight. */
+        void onPostDraw(@NonNull View view, @NonNull Canvas canvas, int token);
+    }
+
+    private PickedDrawDecoration mPickedDrawDecoration;
+
+    /**
+     * Miku-Picked UI: sets the decoration drawn around this view, or null for none.
+     *
+     * @hide
+     */
+    public void setPickedDrawDecoration(@Nullable PickedDrawDecoration decoration) {
+        if (mPickedDrawDecoration == decoration) return;
+        mPickedDrawDecoration = decoration;
+        invalidate();
+    }
+
+    /** @hide */
+    @Nullable
+    public PickedDrawDecoration getPickedDrawDecoration() {
+        return mPickedDrawDecoration;
+    }
+
+    private void drawUndecorated(@NonNull Canvas canvas) {
         final int privateFlags = mPrivateFlags;
         mPrivateFlags = (privateFlags & ~PFLAG_DIRTY_MASK) | PFLAG_DRAWN;
 

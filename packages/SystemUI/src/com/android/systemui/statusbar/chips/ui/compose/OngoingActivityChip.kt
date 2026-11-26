@@ -60,6 +60,10 @@ import com.android.systemui.res.R
 import com.android.systemui.statusbar.StatusBarIconView
 import com.android.systemui.statusbar.chips.StatusBarChipsReturnAnimations
 import com.android.systemui.statusbar.chips.ui.model.ColorsModel
+import com.android.systemui.picked.glasslayer.GlassLayerUi
+import com.android.systemui.picked.glasslayer.glassLayerChips
+import com.android.systemui.qs.shared.style.glassBlurRegion
+import com.android.systemui.qs.shared.style.liquidGlassRim
 import com.android.systemui.statusbar.chips.ui.model.OngoingActivityChipModel
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.NotificationIconContainerViewBinder
@@ -111,10 +115,19 @@ fun OngoingActivityChip(
                 chipSidePaddingTotal
         }
 
+    // Miku-Picked UI: Glass Layer status bar chips, a tinted Liquid Glass slab with a lit rim.
+    val glassChip = glassLayerChips()
+    val chipShape =
+        RoundedCornerShape(dimensionResource(id = R.dimen.ongoing_activity_chip_corner_radius))
+    val glassModifier =
+        if (glassChip) Modifier.glassBlurRegion(chipShape).liquidGlassRim(chipShape) else Modifier
     Expandable(
-        color = Color(model.colors.background(LocalContext.current).defaultColor),
-        shape =
-            RoundedCornerShape(dimensionResource(id = R.dimen.ongoing_activity_chip_corner_radius)),
+        color =
+            GlassLayerUi.chipColor(
+                Color(model.colors.background(LocalContext.current).defaultColor),
+                glassChip,
+            ),
+        shape = chipShape,
         modifier =
             modifier
                 .wrapContentSize()
@@ -146,7 +159,8 @@ fun OngoingActivityChip(
                         } else {
                             1f
                         }
-                ),
+                )
+                .then(glassModifier),
         borderStroke = borderStroke,
         onClick = onClick,
         onClickLabel = onClickLabel,

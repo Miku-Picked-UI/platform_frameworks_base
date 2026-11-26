@@ -100,6 +100,11 @@ constructor(
         // Root view of the Volume Dialog.
         val root: ViewGroup = dialog.requireViewById(R.id.volume_dialog)
         val mainSliderContainer: View? = root.findViewById(R.id.volume_dialog_main_slider_container)
+        // Miku-Picked UI: Glass Layer volume dialog, for the stock look only (PenguinOS' styles
+        // bring their own glass).
+        if (expansionInteractor.look == null) {
+            com.android.systemui.picked.glasslayer.GlassLayerUi.volume(root)
+        }
         if (isCard) {
             // Expanded, the card moves to the middle of the screen, like One UI's.
             launchTraced("VDVB#cardGravity") {

@@ -352,6 +352,8 @@ public class SystemUIDialog extends AlertDialog implements ViewRootImpl.ConfigCh
 
         mDelegate.onStart(this);
         start();
+        // Miku-Picked UI: Glass Layer dialogs and power menu (after start() built the content).
+        com.android.systemui.picked.glasslayer.GlassLayerUi.dialog(this);
     }
 
     /**

@@ -86,6 +86,8 @@ public class SystemUIToast implements ToastPlugin.Toast {
         mPackageName = packageName;
         mUserId = userId;
         mToastView = inflateToastView();
+        // Miku-Picked UI: Glass Layer toasts.
+        com.android.systemui.picked.glasslayer.GlassLayerUi.toast(mToastView);
         mInAnimator = createInAnimator();
         mOutAnimator = createOutAnimator();
 
