@@ -1301,8 +1301,13 @@ public class PackageManagerServiceUtils {
         // There are several items that need to be combined together to safely
         // identify cached items. In particular, changing the value of certain
         // feature flags should cause us to invalidate any caches.
+        // Miku-Picked UI: plus the build time. Self-built ROMs keep one fingerprint from build to
+        // build (eng.<user>, same incremental), so a dirty flash reused the old build's parsed
+        // packages: wrong resource ids, Settings crashing ("requires Theme.AppCompat") until
+        // /data/system/package_cache was wiped by hand.
         final String cacheName = FORCE_PACKAGE_PARSED_CACHE_ENABLED ? "debug"
-                : PackagePartitions.FINGERPRINT;
+                : PackagePartitions.FINGERPRINT + "-"
+                        + SystemProperties.get("ro.build.date.utc", "0");
 
         // Reconcile cache directories, keeping only what we'd actually use.
         for (File cacheDir : FileUtils.listFilesOrEmpty(cacheBaseDir)) {
