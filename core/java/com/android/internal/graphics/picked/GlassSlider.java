@@ -117,8 +117,7 @@ final class GlassSlider implements View.PickedDrawDecoration {
     private void draw(View view, Canvas canvas, float fraction, boolean pressed, int active,
             int inactive, int ticks, int tickActive, int tickInactive) {
         float density = view.getResources().getDisplayMetrics().density;
-        // The jelly motion follows the thumb in pixels along the track.
-        mMotion.update(fraction * view.getWidth(), pressed, density);
+        mMotion.update(fraction, pressed);
         if (mMotion.animating()) view.postInvalidateOnAnimation();
         mThumb.drawSlider(canvas, 0f, view.getWidth(), view.getHeight() / 2f, fraction,
                 view.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL, mMotion.press(),

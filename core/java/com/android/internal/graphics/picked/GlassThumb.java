@@ -29,8 +29,7 @@ final class GlassThumb {
     private static final float RATIO = 5f / 3f;
     private static final float MIN_TRAVEL = 0.45f;
     private static final float PRESS_SCALE = 0.5f;
-    /** Most the wobble may stretch or squash a thumb (see GlassMotion). */
-    private static final float MAX_STRETCH = 0.32f;
+    private static final float MAX_STRETCH = 0.2f;
     private static final float VISIBLE_PRESS = 0.01f;
     private static final float TOGGLE_LENS_X_START = 2f / 3f;
     private static final float TOGGLE_LENS_X_END = 0.75f;
@@ -39,9 +38,8 @@ final class GlassThumb {
     private static final float SLIDER_SHORT_DP = 24f;
     private static final float SOURCE_SPAN = 3f;
     private static final float TRACK_DP = 6f;
-    private static final float SLIDER_PRESS_SCALE = 0.4f;
-    /** How much stretch the track ends make room for. */
-    private static final float SLIDER_ROOM_STRETCH = 0.15f;
+    private static final float SLIDER_PRESS_SCALE = 0.3f;
+    private static final float SLIDER_MAX_STRETCH = 0.1f;
     private static final float TICK_RADIUS_DP = 1.25f;
     private static final int MAX_TICKS = 50;
 
@@ -61,7 +59,7 @@ final class GlassThumb {
             float boundsTop, float boundsBottom) {
         float capsuleWidth = SLIDER_LONG_DP * density;
         float capsuleHeight = SLIDER_SHORT_DP * density;
-        float reach = capsuleWidth / 2f * (1f + SLIDER_PRESS_SCALE) * (1f + SLIDER_ROOM_STRETCH);
+        float reach = capsuleWidth / 2f * (1f + SLIDER_PRESS_SCALE) * (1f + SLIDER_MAX_STRETCH);
         float centerMin = boundsStart + reach;
         float centerMax = boundsEnd - reach;
         if (centerMax <= centerMin) return;
@@ -111,7 +109,7 @@ final class GlassThumb {
             mSource.endRecording();
         }
         drawCapsule(canvas, 0f, 0f, centerX, centerY, capsuleWidth, capsuleHeight, press,
-                stretch, true, alpha, SLIDER_PRESS_SCALE,
+                stretch, true, alpha, SLIDER_PRESS_SCALE, SLIDER_MAX_STRETCH,
                 Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, boundsTop, boundsBottom, 1f, 1f);
     }
 
@@ -141,12 +139,11 @@ final class GlassThumb {
                 width - padding * 2f - thumbHeight * MIN_TRAVEL);
         float travel = width - padding * 2f - thumbWidth;
         float centerX = padding + Math.max(0f, Math.min(1f, position)) * travel + thumbWidth / 2f;
-        float lensPress = Math.max(0f, Math.min(1f, press));
         drawCapsule(canvas, left, top, centerX, height / 2f, thumbWidth, thumbHeight, press,
-                stretch, true, alpha, PRESS_SCALE,
+                stretch, true, alpha, PRESS_SCALE, MAX_STRETCH,
                 boundsStart - left, boundsEnd - left, boundsTop - top, boundsBottom - top,
-                TOGGLE_LENS_X_START + (TOGGLE_LENS_X_END - TOGGLE_LENS_X_START) * lensPress,
-                Math.max(0.05f, TOGGLE_LENS_Y_END * lensPress));
+                TOGGLE_LENS_X_START + (TOGGLE_LENS_X_END - TOGGLE_LENS_X_START) * press,
+                TOGGLE_LENS_Y_END * press);
     }
 
     private RecordingCanvas beginSource(float left, float top, float width, float height) {
@@ -158,12 +155,10 @@ final class GlassThumb {
 
     private void drawCapsule(Canvas canvas, float left, float top, float centerX, float centerY,
             float width, float height, float press, float stretchIn, boolean horizontal,
-            float alpha, float pressScale, float boundsStart, float boundsEnd,
+            float alpha, float pressScale, float maxStretch, float boundsStart, float boundsEnd,
             float boundsTop, float boundsBottom, float lensScaleX, float lensScaleY) {
-        // The spring overshoots both ways: stretched along the drag, then squashed, and so on.
-        float stretch = Math.max(-MAX_STRETCH, Math.min(MAX_STRETCH, stretchIn));
-        float scale = Math.max(0.6f, 1f + pressScale * press);
-        float shown = Math.max(0f, Math.min(1f, press));
+        float stretch = Math.min(maxStretch, stretchIn);
+        float scale = 1f + pressScale * press;
         float roomX = 2f * Math.min(centerX - boundsStart, boundsEnd - centerX) / width;
         float roomY = 2f * Math.min(centerY - boundsTop, boundsBottom - centerY) / height;
         float scaleX = Math.min(scale * (horizontal ? 1f + stretch : 1f - stretch / 2f),
@@ -176,7 +171,7 @@ final class GlassThumb {
         canvas.translate(left + centerX, top + centerY);
         canvas.scale(scaleX, scaleY);
         canvas.translate(-width / 2f, -height / 2f);
-        if (shown > VISIBLE_PRESS) {
+        if (press > VISIBLE_PRESS) {
             mLensPath.rewind();
             mLensPath.addRoundRect(0f, 0f, width, height, radius, radius, Path.Direction.CW);
             mLensMatrix.setTranslate(mSourceLeft - centerX, mSourceTop - centerY);
@@ -184,10 +179,10 @@ final class GlassThumb {
             mLensMatrix.postScale(lensScaleX, lensScaleY);
             mLensMatrix.postTranslate(width / 2f, height / 2f);
             mLens.drawSource(canvas, mLensPath, mSource, mLensMatrix, width, height, radius,
-                    shown * alpha);
+                    press * alpha);
         }
         mThumb.setColor(Color.WHITE);
-        mThumb.setAlpha(Math.max(0, Math.min(255, (int) (255 * (1f - shown) * alpha))));
+        mThumb.setAlpha(Math.max(0, Math.min(255, (int) (255 * (1f - press) * alpha))));
         canvas.drawRoundRect(0f, 0f, width, height, radius, radius, mThumb);
         canvas.restoreToCount(count);
     }

@@ -166,7 +166,7 @@ final class GlassSwitch implements View.PickedDrawDecoration {
         Object touchMode = field(view, "mTouchMode");
         boolean dragging = touchMode instanceof Number t && t.intValue() == TOUCH_MODE_DRAGGING;
 
-        mMotion.update(raw * width, view.isPressed() || dragging, density);
+        mMotion.update(raw, view.isPressed() || dragging);
         if (mMotion.animating()) view.postInvalidateOnAnimation();
 
         boolean enabled = view.isEnabled();
