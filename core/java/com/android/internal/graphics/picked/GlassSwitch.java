@@ -104,6 +104,8 @@ final class GlassSwitch implements View.PickedDrawDecoration {
     private float mDownX;
     private float mDownPosition;
     private View mRow;
+    /** A finger is on the switch: the lens stays while it's held, dragged or not. */
+    private boolean mTouching;
 
     GlassSwitch() {
         mRim.setStyle(Paint.Style.STROKE);
@@ -197,7 +199,7 @@ final class GlassSwitch implements View.PickedDrawDecoration {
         Object touchMode = field(view, "mTouchMode");
         boolean dragging = touchMode instanceof Number t && t.intValue() == TOUCH_MODE_DRAGGING;
 
-        mMotion.update(raw, view.isPressed() || dragging);
+        mMotion.update(raw, view.isPressed() || dragging || mTouching);
         if (mMotion.animating()) view.postInvalidateOnAnimation();
 
         boolean enabled = view.isEnabled();
@@ -224,13 +226,26 @@ final class GlassSwitch implements View.PickedDrawDecoration {
     @Override
     public boolean onTouchEvent(View view, MotionEvent event) {
         if (!mHidden || !GlassLayer.isActive(GlassLayer.SWITCHES)) return false;
+        boolean taken;
         try {
-            return touch(view, event);
+            taken = touch(view, event);
         } catch (ReflectiveOperationException | RuntimeException e) {
             mTouch = TOUCH_NONE;
             mRow = null;
-            return false;
+            taken = false;
         }
+        // Holding the lens while touched: a clickable switch drags itself, so this just watches.
+        boolean touching = switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN -> taken || view.isClickable();
+            case MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> false;
+            default -> mTouching;
+        };
+        if (touching != mTouching) {
+            mTouching = touching;
+            // Pressing doesn't always redraw a switch (its drawables may not have a pressed look).
+            view.postInvalidateOnAnimation();
+        }
+        return taken;
     }
 
     private boolean touch(View view, MotionEvent event) throws ReflectiveOperationException {
@@ -255,12 +270,6 @@ final class GlassSwitch implements View.PickedDrawDecoration {
                 mDownX = x;
                 mDownPosition = thumbPosition(view);
                 mTouch = TOUCH_DOWN;
-                int[] at = new int[2];
-                int[] rowAt = new int[2];
-                view.getLocationInWindow(at);
-                row.getLocationInWindow(rowAt);
-                row.drawableHotspotChanged(x + at[0] - rowAt[0], y + at[1] - rowAt[1]);
-                row.setPressed(true);
                 view.setPressed(true);
                 return true;
             }
@@ -277,7 +286,6 @@ final class GlassSwitch implements View.PickedDrawDecoration {
                     if (animator instanceof Animator a) a.cancel();
                     ViewParent parent = view.getParent();
                     if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
-                    if (mRow != null) mRow.setPressed(false);
                 }
                 float delta = (x - mDownX) / mTravel * (mRtl ? -1f : 1f);
                 setThumbPosition(view, Math.max(0f, Math.min(1f, mDownPosition + delta)));
@@ -290,7 +298,6 @@ final class GlassSwitch implements View.PickedDrawDecoration {
                 mRow = null;
                 if (mode == TOUCH_NONE) return false;
                 view.setPressed(false);
-                if (row != null) row.setPressed(false);
                 boolean clicked = false;
                 if (event.getActionMasked() == MotionEvent.ACTION_UP && row != null) {
                     boolean checked = ((Checkable) view).isChecked();

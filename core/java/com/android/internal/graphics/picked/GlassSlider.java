@@ -14,6 +14,7 @@ import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.util.TypedValue;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewParent;
 import android.widget.SeekBar;
@@ -44,6 +45,11 @@ final class GlassSlider implements View.PickedDrawDecoration {
     private final GlassThumb mThumb = new GlassThumb();
 
     private final GlassMotion mMotion = new GlassMotion();
+    /**
+     * A finger is on the slider. In a scrolling list a SeekBar isn't pressed until it's dragged,
+     * and its drawables may not redraw it on press, so the touch itself holds the lens.
+     */
+    private boolean mTouching;
 
 
     GlassSlider(boolean material) {
@@ -64,6 +70,21 @@ final class GlassSlider implements View.PickedDrawDecoration {
 
     @Override
     public void onPostDraw(View view, Canvas canvas, int token) {}
+
+    @Override
+    public boolean onTouchEvent(View view, MotionEvent event) {
+        boolean touching = switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN -> true;
+            case MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> false;
+            default -> mTouching;
+        };
+        if (touching != mTouching) {
+            mTouching = touching;
+            view.postInvalidateOnAnimation();
+        }
+        // Only watching: the slider handles the touch itself.
+        return false;
+    }
 
     /**
      * Makes a thin SeekBar tall enough for the grabbed thumb to swell to its full size: the lens
@@ -128,7 +149,7 @@ final class GlassSlider implements View.PickedDrawDecoration {
     private void draw(View view, Canvas canvas, float fraction, boolean pressed, int active,
             int inactive, int ticks, int tickActive, int tickInactive) {
         float density = view.getResources().getDisplayMetrics().density;
-        mMotion.update(fraction, pressed);
+        mMotion.update(fraction, pressed || mTouching);
         if (mMotion.animating()) view.postInvalidateOnAnimation();
         mThumb.drawSlider(canvas, 0f, view.getWidth(), view.getHeight() / 2f, fraction,
                 view.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL, mMotion.press(),
