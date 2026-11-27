@@ -65,6 +65,17 @@ final class GlassSlider implements View.PickedDrawDecoration {
     @Override
     public void onPostDraw(View view, Canvas canvas, int token) {}
 
+    /**
+     * Makes a thin SeekBar tall enough for the grabbed thumb to swell to its full size: the lens
+     * is kept inside the view, and a 17 dp SeekBar would leave it no taller than at rest.
+     */
+    static void makeRoom(SeekBar view) {
+        float density = view.getResources().getDisplayMetrics().density;
+        if (view.getMaxHeight() > TRADITIONAL_MAX_DP * density || inMedia(view)) return;
+        int room = (int) Math.ceil(GlassThumb.sliderRoomDp() * density);
+        if (view.getMinHeight() < room) view.setMinHeight(room);
+    }
+
     private boolean drawSeekBar(SeekBar view, Canvas canvas) {
         float density = view.getResources().getDisplayMetrics().density;
         if (view.getMaxHeight() > TRADITIONAL_MAX_DP * density || inMedia(view)) return false;

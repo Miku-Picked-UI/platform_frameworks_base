@@ -62,6 +62,8 @@ final class GlassMotion {
         float goal = held || moving ? 1f : 0f;
         mPress += (goal - mPress) * (1f - (float) Math.exp(-elapsed / RESPONSE_MS));
         if (Math.abs(goal - mPress) < SETTLED) mPress = goal;
-        mAnimating = mPress != goal || moving;
+        // Keep drawing while held: letting go doesn't always redraw the view (a SeekBar whose
+        // drawables aren't stateful), and the thumb would stay a lens until something else did.
+        mAnimating = mPress != goal || moving || held;
     }
 }

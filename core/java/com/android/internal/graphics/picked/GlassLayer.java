@@ -234,6 +234,7 @@ public final class GlassLayer {
         } else if (type == android.widget.SeekBar.class) {
             ensureRegistered();
             view.setPickedDrawDecoration(new GlassSlider(false));
+            if (isActive(SLIDERS)) GlassSlider.makeRoom((android.widget.SeekBar) view);
         } else if (isMaterialSlider(type)) {
             ensureRegistered();
             view.setPickedDrawDecoration(new GlassSlider(true));

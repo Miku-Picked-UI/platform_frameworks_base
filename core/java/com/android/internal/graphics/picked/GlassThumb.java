@@ -52,6 +52,11 @@ final class GlassThumb {
     private float mSourceLeft;
     private float mSourceTop;
 
+    /** How tall a slider view must be for the grabbed thumb to swell fully, in dp. */
+    static float sliderRoomDp() {
+        return SLIDER_SHORT_DP * (1f + SLIDER_PRESS_SCALE) + 1f;
+    }
+
     /** A slider across [boundsStart, boundsEnd] at {@code centerY}: track, ticks and thumb. */
     void drawSlider(Canvas canvas, float boundsStart, float boundsEnd, float centerY,
             float fraction, boolean rtl, float press, float stretch, float density,
@@ -144,6 +149,15 @@ final class GlassThumb {
                 boundsStart - left, boundsEnd - left, boundsTop - top, boundsBottom - top,
                 TOGGLE_LENS_X_START + (TOGGLE_LENS_X_END - TOGGLE_LENS_X_START) * press,
                 TOGGLE_LENS_Y_END * press);
+    }
+
+    /** How far a switch's thumb travels on a track of this size (see drawToggle). */
+    static float toggleTravel(float width, float height, float density) {
+        float padding = PADDING_DP * density;
+        float thumbHeight = height - padding * 2f;
+        float thumbWidth = Math.min(thumbHeight * RATIO,
+                width - padding * 2f - thumbHeight * MIN_TRAVEL);
+        return width - padding * 2f - thumbWidth;
     }
 
     private RecordingCanvas beginSource(float left, float top, float width, float height) {
