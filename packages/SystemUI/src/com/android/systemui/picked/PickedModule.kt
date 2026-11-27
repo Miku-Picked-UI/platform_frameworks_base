@@ -12,6 +12,7 @@ import com.android.systemui.picked.refreshrate.PickedRefreshRateController
 import com.android.systemui.picked.charging.ChargingAnimationController
 import com.android.systemui.picked.oneuisland.OneUislandHost
 import com.android.systemui.picked.perfoverlay.PerfOverlayController
+import com.android.systemui.picked.sidebar.GlassSidebarController
 import com.android.systemui.picked.tether.TetherLteController
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.pipeline.shared.TileSpec
@@ -101,6 +102,12 @@ interface PickedModule {
     @IntoMap
     @ClassKey(ChargingAnimationController::class)
     fun bindChargingAnimationController(controller: ChargingAnimationController): CoreStartable
+
+    /** [Miku-Picked UI] Glass Sidebar edge panel for freeform apps */
+    @Binds
+    @IntoMap
+    @ClassKey(GlassSidebarController::class)
+    fun bindGlassSidebarController(controller: GlassSidebarController): CoreStartable
 
     companion object {
         /** [Miku-Picked UI] Wireless PowerShare tile config */
