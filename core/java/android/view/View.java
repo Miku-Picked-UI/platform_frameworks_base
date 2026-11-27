@@ -16815,6 +16815,11 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (handled) {
             return true;
         }
+        // Miku-Picked UI: a decoration can take the gesture (Glass Layer's draggable switches).
+        if (mPickedDrawDecoration != null && (mViewFlags & ENABLED_MASK) == ENABLED
+                && mPickedDrawDecoration.onTouchEvent(this, event)) {
+            return true;
+        }
         try {
             Trace.traceBegin(TRACE_TAG_VIEW, "View#onTouchEvent");
             return onTouchEvent(event);
@@ -25285,6 +25290,14 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
         /** Called when the view's touch hotspot moves (see drawableHotspotChanged). */
         default void onHotspotChanged(float x, float y) {}
+
+        /**
+         * Called with a touch event before {@link View#onTouchEvent}; returns true to take it
+         * (and the rest of the gesture, when it takes the down).
+         */
+        default boolean onTouchEvent(@NonNull View view, @NonNull MotionEvent event) {
+            return false;
+        }
     }
 
     private PickedDrawDecoration mPickedDrawDecoration;

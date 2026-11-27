@@ -7,10 +7,14 @@
  * SwitchCompat (MaterialSwitch) gets a 64 x 28 dp tinted glass track with a lit rim and a white
  * capsule thumb that, held, dragged or flipping, swells into a Liquid Glass lens and stretches
  * with its speed.
+ *
+ * Miku-Picked UI: the thumb can also be dragged where the row, not the switch, takes the touch
+ * (a SwitchPreference's switch isn't clickable): letting go past the middle clicks the row.
  */
 
 package com.android.internal.graphics.picked;
 
+import android.animation.Animator;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
@@ -25,13 +29,17 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.util.TypedValue;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.Checkable;
 
 import com.android.internal.graphics.ColorUtils;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 /**
  * The Glass Layer switch for {@link android.widget.Switch} and AndroidX SwitchCompat.
@@ -79,6 +87,23 @@ final class GlassSwitch implements View.PickedDrawDecoration {
     private int mStockMinWidth = -1;
 
     private final GlassMotion mMotion = new GlassMotion();
+
+    // Dragging, for switches whose row takes the touch.
+    private static final int TOUCH_NONE = 0;
+    private static final int TOUCH_DOWN = 1;
+    private static final int TOUCH_DRAG = 2;
+    private static final int MAX_ROW_DEPTH = 5;
+    private static final long SETTLE_MS = 120L;
+    private float mTrackLeft;
+    private float mTrackTop;
+    private float mTrackWidth;
+    private float mTrackHeight;
+    private float mTravel;
+    private boolean mRtl;
+    private int mTouch = TOUCH_NONE;
+    private float mDownX;
+    private float mDownPosition;
+    private View mRow;
 
     GlassSwitch() {
         mRim.setStyle(Paint.Style.STROKE);
@@ -159,6 +184,12 @@ final class GlassSwitch implements View.PickedDrawDecoration {
         if (width <= 0f || height <= 0f) return;
         float left = rtl ? start : end - width;
         float top = (switchTop + switchBottom - height) / 2f;
+        mTrackLeft = left;
+        mTrackTop = top;
+        mTrackWidth = width;
+        mTrackHeight = height;
+        mTravel = GlassThumb.toggleTravel(width, height, density);
+        mRtl = rtl;
 
         boolean checked = view instanceof Checkable c && c.isChecked();
         Object position = field(view, "mThumbPosition");
@@ -188,6 +219,164 @@ final class GlassSwitch implements View.PickedDrawDecoration {
         mThumb.drawToggle(canvas, left, top, width, height, rtl ? 1f - raw : raw,
                 mMotion.press(), mMotion.stretch(), density, over(trackColor, behind), alpha, 0f, view.getWidth(), 0f,
                 view.getHeight());
+    }
+
+    @Override
+    public boolean onTouchEvent(View view, MotionEvent event) {
+        if (!mHidden || !GlassLayer.isActive(GlassLayer.SWITCHES)) return false;
+        try {
+            return touch(view, event);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            mTouch = TOUCH_NONE;
+            mRow = null;
+            return false;
+        }
+    }
+
+    private boolean touch(View view, MotionEvent event) throws ReflectiveOperationException {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN -> {
+                mTouch = TOUCH_NONE;
+                mRow = null;
+                // A clickable switch drags itself; this is for the ones whose row takes touches.
+                if (view.isClickable() || mTravel <= 0f || !(view instanceof Checkable)) {
+                    return false;
+                }
+                float slop = ViewConfiguration.get(view.getContext()).getScaledTouchSlop();
+                float x = event.getX();
+                float y = event.getY();
+                if (x < mTrackLeft - slop || x > mTrackLeft + mTrackWidth + slop
+                        || y < mTrackTop - slop || y > mTrackTop + mTrackHeight + slop) {
+                    return false;
+                }
+                View row = clickableRow(view);
+                if (row == null) return false;
+                mRow = row;
+                mDownX = x;
+                mDownPosition = thumbPosition(view);
+                mTouch = TOUCH_DOWN;
+                int[] at = new int[2];
+                int[] rowAt = new int[2];
+                view.getLocationInWindow(at);
+                row.getLocationInWindow(rowAt);
+                row.drawableHotspotChanged(x + at[0] - rowAt[0], y + at[1] - rowAt[1]);
+                row.setPressed(true);
+                view.setPressed(true);
+                return true;
+            }
+            case MotionEvent.ACTION_MOVE -> {
+                if (mTouch == TOUCH_NONE) return false;
+                float x = event.getX();
+                if (mTouch == TOUCH_DOWN) {
+                    float slop = ViewConfiguration.get(view.getContext()).getScaledTouchSlop();
+                    if (Math.abs(x - mDownX) <= slop) return true;
+                    mTouch = TOUCH_DRAG;
+                    mDownX = x;
+                    mDownPosition = thumbPosition(view);
+                    Object animator = field(view, "mPositionAnimator");
+                    if (animator instanceof Animator a) a.cancel();
+                    ViewParent parent = view.getParent();
+                    if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
+                    if (mRow != null) mRow.setPressed(false);
+                }
+                float delta = (x - mDownX) / mTravel * (mRtl ? -1f : 1f);
+                setThumbPosition(view, Math.max(0f, Math.min(1f, mDownPosition + delta)));
+                return true;
+            }
+            case MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                int mode = mTouch;
+                View row = mRow;
+                mTouch = TOUCH_NONE;
+                mRow = null;
+                if (mode == TOUCH_NONE) return false;
+                view.setPressed(false);
+                if (row != null) row.setPressed(false);
+                boolean clicked = false;
+                if (event.getActionMasked() == MotionEvent.ACTION_UP && row != null) {
+                    boolean checked = ((Checkable) view).isChecked();
+                    // A tap clicks the row as it would have; a drag only when it ends on the
+                    // other side. The preference then sets the switch, which slides on from here.
+                    if (mode == TOUCH_DOWN || (thumbPosition(view) >= 0.5f) != checked) {
+                        clicked = row.performClick();
+                    }
+                }
+                if (clicked) {
+                    // In case the preference turned the change down, or binds it later.
+                    view.postDelayed(() -> settle(view), SETTLE_MS);
+                } else {
+                    settle(view);
+                }
+                return true;
+            }
+            default -> {
+                return mTouch != TOUCH_NONE;
+            }
+        }
+    }
+
+    /** Slides a let-go thumb to where the switch's state says, if nothing else did. */
+    private void settle(View view) {
+        if (mTouch != TOUCH_NONE || !view.isAttachedToWindow()) return;
+        try {
+            float target = ((Checkable) view).isChecked() ? 1f : 0f;
+            if (thumbPosition(view) == target) return;
+            Object animator = field(view, "mPositionAnimator");
+            if (animator instanceof Animator a && a.isRunning()) return;
+            Method animate = method(view, "animateThumbToCheckedState", boolean.class);
+            if (animate != null) {
+                animate.invoke(view, target == 1f);
+            } else {
+                setThumbPosition(view, target);
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // Left where it is; the next bind puts it right.
+        }
+    }
+
+    /** The row that handles the switch's clicks: a clickable parent, short of the list. */
+    private static View clickableRow(View view) {
+        ViewParent parent = view.getParent();
+        for (int i = 0; i < MAX_ROW_DEPTH && parent instanceof ViewGroup group; i++) {
+            if (group instanceof android.widget.AdapterView
+                    || group.getClass().getName().endsWith("RecyclerView")) {
+                return null;
+            }
+            if (group.isClickable() && group.isEnabled() && group.hasOnClickListeners()) {
+                return group;
+            }
+            parent = group.getParent();
+        }
+        return null;
+    }
+
+    private static float thumbPosition(View view) throws ReflectiveOperationException {
+        return ((Number) field(view, "mThumbPosition")).floatValue();
+    }
+
+    private static void setThumbPosition(View view, float position)
+            throws ReflectiveOperationException {
+        setField(view, "mThumbPosition", position);
+        view.invalidate();
+    }
+
+    private static final android.util.ArrayMap<String, Method> sMethods =
+            new android.util.ArrayMap<>();
+
+    private static Method method(View view, String name, Class<?>... types) {
+        String key = view.getClass().getName() + '#' + name;
+        if (sMethods.containsKey(key)) return sMethods.get(key);
+        Method found = null;
+        for (Class<?> type = view.getClass(); type != null && type != View.class && found == null;
+                type = type.getSuperclass()) {
+            try {
+                found = type.getDeclaredMethod(name, types);
+                found.setAccessible(true);
+            } catch (NoSuchMethodException e) {
+                // Look further up.
+            }
+        }
+        sMethods.put(key, found);
+        return found;
     }
 
     private void drawTrack(Canvas canvas, float left, float top, float width, float height,
