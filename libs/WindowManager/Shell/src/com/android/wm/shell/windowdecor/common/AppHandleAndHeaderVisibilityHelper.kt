@@ -53,6 +53,12 @@ class AppHandleAndHeaderVisibilityHelper(
         // return false if display is null
         val display = displayController.getDisplay(taskInfo.displayId) ?: return false
 
+        // [Miku-Picked UI] Always show the window header for freeform tasks (DeX virtual/cast
+        // displays and freeform windows launched on the built-in screen, e.g. from Glass Sidebar).
+        if (taskInfo.windowingMode == WINDOWING_MODE_FREEFORM) {
+            return true
+        }
+
         if (!ENABLE_PROJECTED_DISPLAY_DESKTOP_MODE.isTrue) {
             return allowedForTask(taskInfo, display)
         }
@@ -117,6 +123,13 @@ class AppHandleAndHeaderVisibilityHelper(
     }
 
     private fun allowedForDisplay(display: Display): Boolean {
+        // [Miku-Picked UI] DeX virtual/cast displays (e.g. scrcpy, Miracast) are desktop-eligible
+        // via DisplayContent.isDexDisplay() even though DisplayTopologyCoordinator only accepts
+        // INTERNAL/EXTERNAL/OVERLAY displays.
+        if (desktopState.isDesktopModeSupportedOnDisplay(display)) {
+            return true
+        }
+
         if (
             display.type != Display.TYPE_INTERNAL &&
                 !displayController.isDisplayInTopology(display.displayId)
@@ -124,9 +137,6 @@ class AppHandleAndHeaderVisibilityHelper(
             return false
         }
 
-        if (desktopState.isDesktopModeSupportedOnDisplay(display)) {
-            return true
-        }
         // If on default display and on Large Screen (unfolded), show app handle
         return desktopState.overridesShowAppHandle &&
             display.minSizeDimensionDp >= WindowManager.LARGE_SCREEN_SMALLEST_SCREEN_WIDTH_DP

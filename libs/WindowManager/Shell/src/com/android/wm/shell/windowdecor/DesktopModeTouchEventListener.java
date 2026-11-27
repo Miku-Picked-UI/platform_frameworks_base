@@ -651,9 +651,12 @@ public class DesktopModeTouchEventListener
                     updatePointerIcon(e, dragPointerIdx, inputToken,
                             PointerIcon.TYPE_ARROW);
                     // If the cursor ends on a non-desktop-mode display, revert the window
-                    // to its initial bounds prior to the drag starting.
-                    if (!mShellDesktopState
-                            .isEligibleWindowDropTarget(e.getDisplayId())) {
+                    // to its initial bounds prior to the drag starting. Allow dragging a
+                    // freeform window within its own display (DeX virtual displays or phone
+                    // freeform windows).
+                    if (e.getDisplayId() != taskInfo.displayId
+                            && !mShellDesktopState
+                                    .isEligibleWindowDropTarget(e.getDisplayId())) {
                         newTaskBounds.set(mOnDragStartInitialBounds);
                         debugLogD(
                                 "handleFreeformMotionEvent(%s) action=%s pointer in non-desktop"
