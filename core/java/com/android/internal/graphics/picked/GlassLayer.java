@@ -66,10 +66,12 @@ public final class GlassLayer {
     public static final String SWITCHES = "switches";
     public static final String LAUNCHER = "launcher";
     public static final String SIDEBAR = "sidebar";
+    public static final String CAMERA = "camera";
 
     private static final String[] SURFACES = {
         TOASTS, DIALOGS, POWER_MENU, VOLUME, STATUS_BAR_CHIPS, LOCKSCREEN_SHORTCUTS,
         SETTINGS_CARDS, INSTALLER_DIALOGS, SLIDERS, BUTTONS, SWITCHES, LAUNCHER, SIDEBAR,
+        CAMERA,
     };
 
     /** See {@link View.PickedDrawDecoration#SKIP_DRAW}. */
@@ -209,7 +211,9 @@ public final class GlassLayer {
     private static final int PROCESS_APP = 2;
     private static final int PROCESS_SYSTEMUI = 3;
     private static final int PROCESS_LAUNCHER = 4;
+    private static final int PROCESS_CAMERA = 5;
     private static final float LAUNCHER_FOLDER_TINT = 0.55f;
+    private static final float CAMERA_PILL_TINT = 0.45f;
     private static int sProcess = PROCESS_UNKNOWN;
     private static final android.util.ArrayMap<Class<?>, Boolean> sMaterialSliders =
             new android.util.ArrayMap<>();
@@ -225,6 +229,7 @@ public final class GlassLayer {
                 case "com.android.settings", "com.android.packageinstaller",
                         "com.google.android.packageinstaller" -> sProcess = PROCESS_APP;
                 case "com.android.launcher3" -> sProcess = PROCESS_LAUNCHER;
+                case "org.lineageos.aperture" -> sProcess = PROCESS_CAMERA;
                 default -> sProcess = PROCESS_OFF;
             }
             if (sProcess == PROCESS_OFF) return;
@@ -235,6 +240,22 @@ public final class GlassLayer {
             if ("com.android.launcher3.folder.Folder".equals(type.getName())) {
                 attach(view, LAUNCHER, LAUNCHER_FOLDER_TINT,
                         GlassSurface.LIVE | GlassSurface.RIM_ON_TOP);
+            }
+            return;
+        }
+        if (sProcess == PROCESS_CAMERA) {
+            String name = type.getName();
+            if ("org.lineageos.aperture.ui.views.LensSelectorLayout".equals(name)
+                    || "org.lineageos.aperture.ui.views.IslandView".equals(name)
+                    || (view instanceof android.widget.HorizontalScrollView
+                            && view.getBackground() != null)) {
+                attach(view, CAMERA, CAMERA_PILL_TINT,
+                        GlassSurface.LIVE | GlassSurface.RIM_ON_TOP | GlassSurface.OUTLINE_FILL);
+            } else if (view instanceof android.widget.Switch || isSwitchCompat(type)) {
+                ensureRegistered();
+                GlassSwitch glass = new GlassSwitch();
+                view.setPickedDrawDecoration(glass);
+                glass.widen(view);
             }
             return;
         }
